@@ -11,24 +11,25 @@ return new class extends Migration
         Schema::create('media', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
-            $table->string('disk')->default('public');
-            $table->string('path');
-            $table->string('filename');
-            $table->string('original_name');
+            $table->string('disk', 191)->default('public');
+            $table->string('path', 191);
+            $table->string('filename', 191);
+            $table->string('original_name', 191);
             $table->string('mime_type', 100);
             $table->unsignedBigInteger('size');
             $table->string('alt_text')->nullable();
             $table->string('title')->nullable();
             $table->text('caption')->nullable();
-            $table->string('collection')->default('default');
+            $table->string('collection', 191)->default('default');
             $table->string('locale', 10)->nullable();
-            $table->nullableMorphs('mediable');
+            $table->string('mediable_type', 191)->nullable();
+            $table->unsignedBigInteger('mediable_id')->nullable();
+            $table->index(['mediable_type', 'mediable_id']);
             $table->unsignedInteger('sort_order')->default(0);
             $table->timestamps();
             $table->softDeletes();
 
             $table->index(['collection', 'locale']);
-            $table->index(['disk', 'path']);
         });
     }
 

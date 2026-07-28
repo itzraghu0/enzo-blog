@@ -12,7 +12,6 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // Legacy seeders removed during blog conversion.
-        // Add blog seeders here once the new content models are in place.
+        $this->call(BlogDemoSeeder::class);
     }
 }

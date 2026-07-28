@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('posts', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->string('status')->default('draft');
+            $table->string('status', 50)->default('draft');
             $table->boolean('is_featured')->default(false);
             $table->timestamp('published_at')->nullable();
             $table->string('country_code', 2)->nullable()->index();

@@ -12,8 +12,8 @@ return new class extends Migration
             $table->id();
             $table->foreignId('category_id')->constrained()->cascadeOnDelete();
             $table->string('locale', 10);
-            $table->string('name');
-            $table->string('slug');
+            $table->string('name', 191);
+            $table->string('slug', 191);
             $table->text('description')->nullable();
             $table->string('seo_title')->nullable();
             $table->text('meta_description')->nullable();

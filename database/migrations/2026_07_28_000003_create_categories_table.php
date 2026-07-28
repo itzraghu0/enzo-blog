@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('categories', function (Blueprint $table) {
             $table->id();
             $table->foreignId('parent_id')->nullable()->constrained('categories')->nullOnDelete();
-            $table->string('status')->default('active');
+            $table->string('status', 50)->default('active');
             $table->unsignedInteger('sort_order')->default(0);
             $table->timestamps();
             $table->softDeletes();

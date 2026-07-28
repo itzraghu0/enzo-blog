@@ -3,19 +3,9 @@
     data-kt-drawer="true"
     data-kt-drawer-class="kt-drawer kt-drawer-start fixed z-10 top-0 bottom-0 w-full me-5 max-w-[250px] p-5 lg:p-0 overflow-auto"
     id="navbar">
-    <div
-        class="w-full kt-container-fluid px-6 lg:px-8 max-w-[2200px] lg:flex lg:flex-wrap lg:justify-between lg:items-center gap-2 mx-auto">
+    <div class="w-full kt-container-fluid px-6 lg:px-8 max-w-[2200px] lg:flex lg:flex-wrap lg:justify-between lg:items-center gap-2 mx-auto">
         <div class="kt-menu items-stretch flex-col lg:flex-row gap-5 lg:gap-7.5 grow lg:grow-0" data-kt-menu="true"
             id="mega_menu">
-            <div class="kt-menu-item {{ Helper::setActive('dashboard') }}">
-                <a class="kt-menu-link lg:py-3.5 border-b border-b-transparent kt-menu-item-active:border-b-mono text-foreground kt-menu-item-hover:text-mono kt-menu-item-active:text-mono kt-menu-item-here:border-b-mono kt-menu-item-here:text-mono"
-                    href="{{ route('dashboard') }}">
-                    <span class="kt-menu-title font-medium text-foreground text-sm">
-                        {{ __('Home') }}
-                    </span>
-                </a>
-            </div>
-
             @if (auth()->check() && auth()->user()->canManageBlog())
                 <div class="kt-menu-item {{ Helper::setActive('admin/posts') }} {{ Helper::setActive('admin/posts/create') }} {{ Helper::setActive('admin/posts/*/edit') }}"
                     data-kt-menu-item-offset="-158px, 0"
