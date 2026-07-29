@@ -7,22 +7,37 @@ use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
 
 class MediaService
 {
     public function store(UploadedFile $file, ?User $user = null, array $data = []): Media
     {
-        $disk = $data['disk'] ?? config('blog.media_disk', 'public');
+        if (! $file->isValid()) {
+            abort(422, __('The uploaded file is not valid.'));
+        }
+
         $directory = trim(config('blog.media_directory', 'blog'), '/');
         $subDirectory = now()->format('Y/m');
-        $storedPath = $file->store($directory.'/'.$subDirectory, $disk);
+        $targetDirectory = public_path($directory.'/'.$subDirectory);
+        File::ensureDirectoryExists($targetDirectory);
+
+        $filename = $this->buildFilename($file);
+        $storedPath = trim($directory.'/'.$subDirectory.'/'.$filename, '/');
+
+        $contents = @file_get_contents($file->getRealPath());
+        if ($contents === false) {
+            abort(422, __('The uploaded file could not be read.'));
+        }
+
+        File::put($targetDirectory.'/'.$filename, $contents);
 
         return Media::create([
             'user_id' => $user?->id,
-            'disk' => $disk,
+            'disk' => 'public',
             'path' => $storedPath,
-            'filename' => basename($storedPath),
+            'filename' => $filename,
             'original_name' => $file->getClientOriginalName(),
             'mime_type' => $file->getMimeType() ?? $file->getClientMimeType() ?? 'application/octet-stream',
             'size' => $file->getSize(),
@@ -47,9 +62,30 @@ class MediaService
         return $media->refresh();
     }
 
+    public function duplicateForModel(Media $media, Model $model, string $collection = 'default', ?string $locale = null, array $overrides = []): Media
+    {
+        $copy = Media::create(array_merge([
+            'user_id' => $media->user_id,
+            'disk' => $media->disk,
+            'path' => $media->path,
+            'filename' => $media->filename,
+            'original_name' => $media->original_name,
+            'mime_type' => $media->mime_type,
+            'size' => $media->size,
+            'alt_text' => $media->alt_text,
+            'title' => $media->title,
+            'caption' => $media->caption,
+            'collection' => $collection,
+            'locale' => $locale ?? $media->locale,
+            'sort_order' => $media->sort_order,
+        ], $overrides));
+
+        return $this->attach($copy, $model, $collection, $locale);
+    }
+
     public function delete(Media $media): bool
     {
-        Storage::disk($media->disk)->delete($media->path);
+        File::delete(public_path($media->path));
 
         return (bool) $media->delete();
     }
@@ -68,5 +104,17 @@ class MediaService
         $value = trim((string) $value);
 
         return $value === '' ? null : $value;
+    }
+
+    private function buildFilename(UploadedFile $file): string
+    {
+        $extension = $file->getClientOriginalExtension() ?: $file->extension() ?: 'bin';
+        $extension = Str::lower($extension);
+
+        return sprintf(
+            '%s.%s',
+            uniqid('media_', true),
+            $extension
+        );
     }
 }

@@ -20,6 +20,13 @@ class MediaController extends Controller
     {
         return view('admin.blog.media.index', [
             'mediaItems' => $this->mediaService->paginate(),
+            'stats' => [
+                'total' => \App\Models\Media::query()->count(),
+                'thisMonth' => \App\Models\Media::query()
+                    ->where('created_at', '>=', now()->startOfMonth())
+                    ->count(),
+                'publicFolder' => 'public/media/blog',
+            ],
         ]);
     }
 

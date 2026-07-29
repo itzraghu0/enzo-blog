@@ -7,7 +7,7 @@
             <i class="ki-filled ki-menu"></i>
         </button>
 
-        <a class="flex items-center shrink-0 gap-2" href="{{ route('admin.posts.index') }}">
+        <a class="flex items-center shrink-0 gap-2" href="{{ route('admin.dashboard') }}">
             <img class="dark:hidden w-8 shrink-0" src="{{ url('/assets/media/app/mini-logo-circle.svg') }}" />
             <img class="hidden dark:inline-block w-8 shrink-0"
                 src="{{ url('/assets/media/app/mini-logo-circle-dark.svg') }}" />
@@ -56,18 +56,34 @@
                     data-kt-dropdown-toggle="true">
                     <i class="ki-filled ki-profile-circle text-lg"></i>
                 </button>
-                <div class="kt-dropdown-menu w-[250px]" data-kt-dropdown-menu="true">
+                <div class="kt-dropdown-menu w-[270px]" data-kt-dropdown-menu="true">
                     <div class="px-2.5 pt-1.5 mb-2.5 flex flex-col gap-3.5">
                         <div class="flex flex-col gap-1 px-2">
                             <span class="font-medium text-sm text-foreground">{{ Auth::user()->name }}</span>
                             <span class="text-xs text-muted-foreground">{{ Auth::user()->email }}</span>
                         </div>
 
+                        <div class="flex items-center justify-between gap-2 px-2">
+                            <span class="flex items-center gap-2">
+                                <i class="ki-filled ki-moon text-base text-muted-foreground"></i>
+                                <span class="font-medium text-2sm">{{ __('Dark Mode') }}</span>
+                            </span>
+                            <input class="kt-switch" data-kt-theme-switch-state="dark" data-kt-theme-switch-toggle="true"
+                                name="check" type="checkbox" value="1" />
+                        </div>
+
+                        <button type="button"
+                            class="flex items-center gap-2 px-2 py-2 rounded-xl text-left hover:bg-muted/40"
+                            data-kt-modal-toggle="#change_password">
+                            <i class="ki-filled ki-lock text-base text-muted-foreground"></i>
+                            <span class="font-medium text-2sm">{{ __('Change Password') }}</span>
+                        </button>
+
                         <a class="kt-btn kt-btn-outline justify-center w-full" href="#"
                             onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
                             {{ __('Log Out') }}
                         </a>
-                        <form id="logout-form" action="{{ route('logout') }}" method="POST" style="display: none;">
+                        <form id="logout-form" action="{{ route('admin.logout') }}" method="POST" style="display: none;">
                             @csrf
                         </form>
                     </div>

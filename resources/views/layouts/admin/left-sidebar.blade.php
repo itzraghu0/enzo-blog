@@ -21,7 +21,7 @@
                                 <i class="material-icons">input</i>{{ __('Sign Out') }}
                             </a>
                         </li>
-                        <form id="logout-form" action="{{ route('logout') }}" method="POST" style="display: none;">
+                        <form id="logout-form" action="{{ route('admin.logout') }}" method="POST" style="display: none;">
                             @csrf
                         </form>
                     </ul>
@@ -56,6 +56,20 @@
                         <span>{{ __('media') }}</span>
                     </a>
                 </li>
+                <li class="{{ Helper::setActive('admin/members') }}">
+                    <a href="{{ route('admin.members.index') }}">
+                        <i class="material-icons">people</i>
+                        <span>{{ __('members') }}</span>
+                    </a>
+                </li>
+                @if (auth()->user()->isAdmin())
+                    <li class="{{ Helper::setActive('admin/staff') }}">
+                        <a href="{{ route('admin.staff.index') }}">
+                            <i class="material-icons">admin_panel_settings</i>
+                            <span>{{ __('staff') }}</span>
+                        </a>
+                    </li>
+                @endif
             </ul>
         </div>
 

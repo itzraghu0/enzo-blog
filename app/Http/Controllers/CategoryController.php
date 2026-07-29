@@ -21,8 +21,26 @@ class CategoryController extends Controller
         $locale = $request->get('locale', config('blog.default_locale'));
         $search = trim((string) $request->get('search', ''));
 
+        $stats = [
+            'total' => Category::query()->count(),
+            'active' => Category::query()->where('status', 'active')->count(),
+            'inactive' => Category::query()->where('status', 'inactive')->count(),
+            'parents' => Category::query()->whereNull('parent_id')->count(),
+        ];
+
         $categories = Category::query()
-            ->with(['translations', 'parent.translations', 'children.translations'])
+            ->select(['id', 'parent_id', 'status', 'sort_order', 'created_at', 'updated_at'])
+            ->with([
+                'translations' => function ($query): void {
+                    $query->select(['id', 'category_id', 'locale', 'name', 'slug', 'description']);
+                },
+                'parent.translations' => function ($query): void {
+                    $query->select(['id', 'category_id', 'locale', 'name', 'slug']);
+                },
+                'children.translations' => function ($query): void {
+                    $query->select(['id', 'category_id', 'locale', 'name', 'slug']);
+                },
+            ])
             ->when($search !== '', function ($query) use ($search, $locale): void {
                 $query->whereHas('translations', function ($translationQuery) use ($search, $locale): void {
                     $translationQuery->where('locale', $locale)
@@ -37,6 +55,8 @@ class CategoryController extends Controller
             'categories' => $categories,
             'locale' => $locale,
             'search' => $search,
+            'stats' => $stats,
+            'locales' => config('blog.supported_locales', [config('blog.default_locale', 'en')]),
         ]);
     }
 
@@ -44,7 +64,15 @@ class CategoryController extends Controller
     {
         return view('admin.blog.categories.create', [
             'category' => new Category(),
-            'parents' => Category::query()->with('translations')->orderBy('sort_order')->get(),
+            'parents' => Category::query()
+                ->select(['id', 'parent_id', 'status', 'sort_order'])
+                ->with([
+                    'translations' => function ($query): void {
+                        $query->select(['id', 'category_id', 'locale', 'name', 'slug']);
+                    },
+                ])
+                ->orderBy('sort_order')
+                ->get(),
             'locales' => config('blog.supported_locales', [config('blog.default_locale', 'en')]),
         ]);
     }
@@ -53,7 +81,16 @@ class CategoryController extends Controller
     {
         return view('admin.blog.categories.edit', [
             'category' => $category->load(['translations', 'parent.translations', 'children.translations']),
-            'parents' => Category::query()->with('translations')->whereKeyNot($category->getKey())->orderBy('sort_order')->get(),
+            'parents' => Category::query()
+                ->select(['id', 'parent_id', 'status', 'sort_order'])
+                ->with([
+                    'translations' => function ($query): void {
+                        $query->select(['id', 'category_id', 'locale', 'name', 'slug']);
+                    },
+                ])
+                ->whereKeyNot($category->getKey())
+                ->orderBy('sort_order')
+                ->get(),
             'locales' => config('blog.supported_locales', [config('blog.default_locale', 'en')]),
         ]);
     }

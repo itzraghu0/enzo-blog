@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class PostService
@@ -34,6 +35,7 @@ class PostService
 
             $this->syncCategories($post, $data['category_ids'] ?? []);
             $this->syncTranslations($post, $data['translations'] ?? []);
+            $this->flushListingCaches();
 
             return $post->load(['translations', 'categories', 'media']);
         });
@@ -55,6 +57,8 @@ class PostService
                 $this->syncTranslations($post, $data['translations'] ?? []);
             }
 
+            $this->flushListingCaches();
+
             return $post->load(['translations', 'categories', 'media']);
         });
     }
@@ -66,25 +70,43 @@ class PostService
             'published_at' => now(),
         ]);
 
+        $this->flushListingCaches();
+
         return $post->refresh();
     }
 
     public function delete(Post $post): bool
     {
         return (bool) DB::transaction(function () use ($post): bool {
-            return (bool) $post->delete();
+            $deleted = (bool) $post->delete();
+            $this->flushListingCaches();
+
+            return $deleted;
         });
     }
 
     public function publishedIndex(array $filters = [], int $perPage = 9): LengthAwarePaginator
     {
         $locale = $filters['locale'] ?? config('blog.default_locale', 'en');
+        $defaultLocale = config('blog.default_locale', 'en');
         $sort = $filters['sort'] ?? 'recent_desc';
         $month = $filters['month'] ?? null;
         $categoryId = $filters['category_id'] ?? null;
 
         $query = Post::query()
-            ->with(['translations', 'categories.translations', 'previewMedia', 'author'])
+            ->select(['posts.id', 'posts.user_id', 'posts.status', 'posts.is_featured', 'posts.published_at', 'posts.created_at', 'posts.updated_at'])
+            ->with([
+                'translations' => function ($translationQuery) use ($locale, $defaultLocale): void {
+                    $translationQuery->select(['id', 'post_id', 'locale', 'title', 'slug', 'excerpt', 'preview_image_alt'])
+                        ->whereIn('locale', [$locale, $defaultLocale]);
+                },
+                'categories.translations' => function ($categoryTranslationQuery) use ($locale, $defaultLocale): void {
+                    $categoryTranslationQuery->select(['id', 'category_id', 'locale', 'name', 'slug'])
+                        ->whereIn('locale', [$locale, $defaultLocale]);
+                },
+                'previewMedia:id,user_id,disk,path,filename,original_name,mime_type,size,alt_text,title,caption,collection,locale,mediable_type,mediable_id,sort_order,created_at,updated_at',
+                'author:id,name',
+            ])
             ->where('status', 'published')
             ->when($month, function ($query) use ($month): void {
                 $date = Carbon::createFromFormat('Y-m', $month);
@@ -107,7 +129,7 @@ class PostService
                 $join->on('pt_sort.post_id', '=', 'posts.id')
                     ->where('pt_sort.locale', '=', $locale);
             })
-                ->select('posts.*')
+                ->select('posts.id', 'posts.user_id', 'posts.status', 'posts.is_featured', 'posts.published_at', 'posts.created_at', 'posts.updated_at')
                 ->orderBy('pt_sort.title', $direction);
         } else {
             $query->orderBy('published_at', $sort === 'recent_asc' ? 'asc' : 'desc');
@@ -122,23 +144,57 @@ class PostService
         $defaultLocale = config('blog.default_locale', 'en');
 
         $translation = PostTranslation::query()
-            ->with(['post.translations', 'post.categories.translations', 'post.previewMedia', 'post.author'])
+            ->select(['id', 'post_id', 'locale', 'title', 'slug', 'excerpt', 'content', 'seo_title', 'meta_description', 'og_title', 'og_description', 'canonical_url', 'preview_image_alt'])
             ->where('locale', $locale)
             ->where('slug', $slug)
             ->first()
             ?? PostTranslation::query()
-            ->with(['post.translations', 'post.categories.translations', 'post.previewMedia', 'post.author'])
-            ->where('locale', $defaultLocale)
-            ->where('slug', $slug)
-            ->first();
+                ->select(['id', 'post_id', 'locale', 'title', 'slug', 'excerpt', 'content', 'seo_title', 'meta_description', 'og_title', 'og_description', 'canonical_url', 'preview_image_alt'])
+                ->where('locale', $defaultLocale)
+                ->where('slug', $slug)
+                ->first();
 
-        return $translation?->post?->status === 'published' ? $translation->post : null;
+        if ($translation === null) {
+            return null;
+        }
+
+        return $translation->post()
+            ->select(['posts.id', 'posts.user_id', 'posts.status', 'posts.is_featured', 'posts.published_at', 'posts.created_at', 'posts.updated_at'])
+            ->with([
+                'translations' => function ($translationQuery) use ($locale, $defaultLocale): void {
+                    $translationQuery->select(['id', 'post_id', 'locale', 'title', 'slug', 'excerpt', 'content', 'seo_title', 'meta_description', 'og_title', 'og_description', 'canonical_url', 'preview_image_alt'])
+                        ->whereIn('locale', [$locale, $defaultLocale]);
+                },
+                'categories.translations' => function ($categoryTranslationQuery) use ($locale, $defaultLocale): void {
+                    $categoryTranslationQuery->select(['id', 'category_id', 'locale', 'name', 'slug'])
+                        ->whereIn('locale', [$locale, $defaultLocale]);
+                },
+                'previewMedia:id,user_id,disk,path,filename,original_name,mime_type,size,alt_text,title,caption,collection,locale,mediable_type,mediable_id,sort_order,created_at,updated_at',
+                'author:id,name',
+            ])
+            ->where('status', 'published')
+            ->first();
     }
 
-    public function syncPreviewImage(Post $post, ?UploadedFile $file, array $data = []): ?Media
+    public function syncPreviewImage(Post $post, ?UploadedFile $file, ?Media $selectedMedia = null, array $data = []): ?Media
     {
         if ($file === null) {
-            return $post->previewMedia;
+            if ($selectedMedia === null) {
+                return $post->previewMedia;
+            }
+
+            $existing = $post->previewMedia;
+            if ($existing !== null && $existing->is($selectedMedia)) {
+                return $existing;
+            }
+
+            if ($existing !== null && $existing->isNot($selectedMedia)) {
+                $this->mediaService->delete($existing);
+            }
+
+            return $this->mediaService->duplicateForModel($selectedMedia, $post, 'preview', $data['locale'] ?? null, [
+                'alt_text' => $this->blankToNull($data['alt_text'] ?? $selectedMedia->alt_text),
+            ]);
         }
 
         $existing = $post->previewMedia;
@@ -151,6 +207,13 @@ class PostService
         ]));
 
         return $this->mediaService->attach($media, $post, 'preview', $data['locale'] ?? null);
+    }
+
+    private function blankToNull(mixed $value): ?string
+    {
+        $value = trim((string) $value);
+
+        return $value === '' ? null : $value;
     }
 
     public function syncCategories(Post $post, array $categoryIds): void
@@ -167,13 +230,30 @@ class PostService
 
     public function publishedMonths(): Collection
     {
-        return Post::query()
+        $cacheKey = 'blog.published_months.' . config('blog.default_locale', 'en');
+        $cachedMonths = Cache::get($cacheKey);
+
+        if ($cachedMonths instanceof Collection) {
+            return $cachedMonths;
+        }
+
+        if (is_object($cachedMonths) && str_starts_with(get_class($cachedMonths), '__PHP_Incomplete_Class')) {
+            Cache::forget($cacheKey);
+        } elseif (is_array($cachedMonths)) {
+            return collect($cachedMonths);
+        }
+
+        $months = Post::query()
             ->where('status', 'published')
-            ->selectRaw("DATE_FORMAT(published_at, '%Y-%m') as month")
             ->whereNotNull('published_at')
+            ->selectRaw("DATE_FORMAT(published_at, '%Y-%m') as month")
             ->groupBy('month')
             ->orderByDesc('month')
             ->pluck('month');
+
+        Cache::put($cacheKey, $months->all(), now()->addMinutes(15));
+
+        return $months;
     }
 
     private function syncTranslations(Post $post, array $translations): void
@@ -229,5 +309,11 @@ class PostService
                 Arr::only($normalizedTranslations[$defaultLocale], $fields)
             );
         }
+    }
+
+    private function flushListingCaches(): void
+    {
+        Cache::forget('blog.published_months.' . config('blog.default_locale', 'en'));
+        Cache::forget('admin.dashboard.overview');
     }
 }

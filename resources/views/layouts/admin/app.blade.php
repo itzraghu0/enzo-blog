@@ -61,9 +61,60 @@
         </div>
     </div>
 
+    <div class="kt-modal" data-kt-modal="true" id="change_password">
+        <div class="kt-modal-content max-w-[500px] top-5 lg:top-[15%]">
+            <div class="kt-modal-header">
+                <h3 class="kt-modal-title">
+                    {{ __('Change Password') }}
+                </h3>
+                <button class="kt-btn kt-btn-sm kt-btn-icon kt-btn-ghost shrink-0" data-kt-modal-dismiss="true">
+                    <i class="ki-filled ki-cross"></i>
+                </button>
+            </div>
+            <div class="kt-modal-body grid gap-5 px-0 py-5">
+                <div class="flex flex-col px-5 gap-2.5">
+                    <label class="kt-form-label font-semibold text-sm">{{ __('Old Password') }}</label>
+                    <label class="kt-input">
+                        <input type="password" name="old_password" autocomplete="current-password">
+                        <button class="kt-btn kt-btn-icon kt-btn-sm kt-btn-ghost -me-2" type="button">
+                            <i class="ki-filled ki-lock"></i>
+                        </button>
+                    </label>
+                </div>
+
+                <div class="flex flex-col px-5 gap-2.5">
+                    <label class="kt-form-label font-semibold text-sm">{{ __('New Password') }}</label>
+                    <label class="kt-input">
+                        <input type="password" name="new_password" autocomplete="new-password">
+                        <button class="kt-btn kt-btn-icon kt-btn-sm kt-btn-ghost -me-2" type="button">
+                            <i class="ki-filled ki-lock"></i>
+                        </button>
+                    </label>
+                </div>
+
+                <div class="flex flex-col px-5 gap-2.5">
+                    <label class="kt-form-label font-semibold text-sm">{{ __('Confirm Password') }}</label>
+                    <label class="kt-input">
+                        <input type="password" name="confirm_password" autocomplete="new-password">
+                        <button class="kt-btn kt-btn-icon kt-btn-sm kt-btn-ghost -me-2" type="button">
+                            <i class="ki-filled ki-lock"></i>
+                        </button>
+                    </label>
+                </div>
+
+                <div class="border-b border-b-border"></div>
+                <div class="flex flex-col px-5 gap-4">
+                    <button class="kt-btn kt-btn-primary justify-center" id="changePassword" type="button">
+                        {{ __('Change Password') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="{{ URL('assets/js/core.bundle.js') }}"></script>
     <script src="{{ URL('assets/vendors/ktui/ktui.min.js') }}"></script>
-    <script src="{{ URL('old-assets/plugins/jquery/jquery.min.js') }}"></script>
+    <script src="{{ URL('assets/vendors/jquery/jquery.min.js') }}"></script>
     <script src="{{ URL('assets/js/sweetalert/sweetalert.js') }}"></script>
 
     <script>
@@ -86,6 +137,66 @@
                 class: 'bg-success text-white'
             });
         @endif
+    </script>
+
+    <script>
+        $(document).ready(function() {
+            $('#changePassword').on('click', function() {
+                const old_password = $('[name="old_password"]').val();
+                const new_password = $('[name="new_password"]').val();
+                const confirm_password = $('[name="confirm_password"]').val();
+
+                $.ajaxSetup({
+                    headers: {
+                        'X-CSRF-Token': $('meta[name=_token]').attr('content')
+                    }
+                });
+
+                $.ajax({
+                    url: "{{ route('admin.change-password') }}",
+                    type: 'POST',
+                    data: {
+                        old_password,
+                        new_password,
+                        confirm_password
+                    },
+                    success: function(data) {
+                        if (typeof data.flag !== 'undefined' && data.flag) {
+                            KTToast.show({
+                                message: data.message,
+                                icon: '<i class="ki-filled ki-lock-check text-success text-xl"></i>',
+                                progress: true,
+                                pauseOnHover: true,
+                                class: 'bg-success text-white'
+                            });
+
+                            setTimeout(function() {
+                                window.location.reload();
+                            }, 800);
+                        } else if (typeof data.errors !== 'undefined' && data.errors) {
+                            $.each(data.errors, function(key, value) {
+                                KTToast.show({
+                                    message: value[0],
+                                    icon: '<i class="ki-filled ki-information-4 text-destructive text-xl"></i>',
+                                    progress: true,
+                                    pauseOnHover: true,
+                                    class: 'bg-error text-white'
+                                });
+                            });
+                        } else {
+                            KTToast.show({
+                                message: data.message ||
+                                    "{{ __('Unable to change password') }}",
+                                icon: '<i class="ki-filled ki-information-4 text-destructive text-xl"></i>',
+                                progress: true,
+                                pauseOnHover: true,
+                                class: 'bg-error text-white'
+                            });
+                        }
+                    }
+                });
+            });
+        });
     </script>
 
     @stack('script')

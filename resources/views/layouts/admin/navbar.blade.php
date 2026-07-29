@@ -111,6 +111,26 @@
                         </span>
                     </a>
                 </div>
+
+                @if (auth()->user()->isAdmin())
+                    <div class="kt-menu-item {{ Helper::setActive('admin/members') }}">
+                        <a class="kt-menu-link lg:py-3.5 border-b border-b-transparent kt-menu-item-active:border-b-mono text-foreground kt-menu-item-hover:text-mono kt-menu-item-active:text-mono kt-menu-item-here:border-b-mono kt-menu-item-here:text-mono"
+                            href="{{ route('admin.members.index') }}">
+                            <span class="kt-menu-title font-medium text-foreground text-sm">
+                                {{ __('Members') }}
+                            </span>
+                        </a>
+                    </div>
+
+                    <div class="kt-menu-item {{ Helper::setActive('admin/staff') }}">
+                        <a class="kt-menu-link lg:py-3.5 border-b border-b-transparent kt-menu-item-active:border-b-mono text-foreground kt-menu-item-hover:text-mono kt-menu-item-active:text-mono kt-menu-item-here:border-b-mono kt-menu-item-here:text-mono"
+                            href="{{ route('admin.staff.index') }}">
+                            <span class="kt-menu-title font-medium text-foreground text-sm">
+                                {{ __('Staff') }}
+                            </span>
+                        </a>
+                    </div>
+                @endif
             @endif
         </div>
     </div>

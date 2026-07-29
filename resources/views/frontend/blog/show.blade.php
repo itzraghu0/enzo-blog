@@ -10,28 +10,53 @@
         ->values()
         ->all();
 
+    $postSlug = $translation?->slug ?? $post->id;
+
     $structuredData = [
         '@context' => 'https://schema.org',
-        '@type' => 'BlogPosting',
-        'headline' => $translation?->title ?? __('Untitled'),
-        'description' => $translation?->excerpt ?? '',
-        'datePublished' => optional($post->published_at)?->toAtomString(),
-        'dateModified' => optional($post->updated_at)?->toAtomString(),
-        'inLanguage' => $locale,
-        'author' => [
-            '@type' => 'Person',
-            'name' => $post->author?->name ?? __('Author'),
+        '@graph' => [
+            [
+                '@type' => 'BlogPosting',
+                '@id' => url()->current() . '#article',
+                'headline' => $translation?->title ?? __('Untitled'),
+                'description' => $translation?->excerpt ?? '',
+                'datePublished' => optional($post->published_at)?->toAtomString(),
+                'dateModified' => optional($post->updated_at)?->toAtomString(),
+                'inLanguage' => $locale,
+                'author' => [
+                    '@type' => 'Person',
+                    'name' => $post->author?->name ?? __('Author'),
+                ],
+                'publisher' => [
+                    '@type' => 'Organization',
+                    'name' => config('app.name', 'Blog'),
+                ],
+                'mainEntityOfPage' => url()->current(),
+                'articleSection' => $categoryNames,
+            ],
+            [
+                '@type' => 'BreadcrumbList',
+                '@id' => url()->current() . '#breadcrumbs',
+                'itemListElement' => [
+                    [
+                        '@type' => 'ListItem',
+                        'position' => 1,
+                        'name' => __('Home'),
+                        'item' => route('blog.index', ['locale' => $locale]),
+                    ],
+                    [
+                        '@type' => 'ListItem',
+                        'position' => 2,
+                        'name' => $translation?->title ?? __('Untitled'),
+                        'item' => url()->current(),
+                    ],
+                ],
+            ],
         ],
-        'publisher' => [
-            '@type' => 'Organization',
-            'name' => config('app.name', 'Blog'),
-        ],
-        'mainEntityOfPage' => url()->current(),
-        'articleSection' => $categoryNames,
     ];
 
     if ($post->previewMedia) {
-        $structuredData['image'] = [$post->previewMedia->url()];
+        $structuredData['@graph'][0]['image'] = [$post->previewMedia->url()];
     }
 @endphp
 
@@ -40,81 +65,98 @@
 @endpush
 
 @section('content')
-    <article class="max-w-4xl mx-auto space-y-8">
-        <div class="rounded-3xl bg-white border border-slate-200 overflow-hidden shadow-xl shadow-slate-900/5">
-            @if ($post->previewMedia)
-                <img src="{{ $post->previewMedia->url() }}"
-                    alt="{{ $translation?->preview_image_alt ?? ($translation?->title ?? '') }}"
-                    class="w-full h-[420px] object-cover">
-            @endif
-
-            <div class="p-8 md:p-12">
-                <div class="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.25em] text-slate-500">
-                    <span>{{ $post->author?->name ?? __('Author') }}</span>
-                    <span>&middot;</span>
-                    <span>{{ optional($post->published_at)->format('M d, Y') ?? __('Draft') }}</span>
-                </div>
-
-                <h1 class="mt-4 text-4xl md:text-5xl font-semibold leading-tight">
-                    {{ $translation?->title ?? __('Untitled') }}
-                </h1>
-                <p class="mt-5 text-lg text-slate-600 max-w-3xl">{{ $translation?->excerpt ?? '' }}</p>
-
-                <div class="mt-6 flex flex-wrap gap-2">
-                    @foreach ($post->categories as $category)
+    <article class="editorial-shell">
+        <div class="mx-auto max-w-[720px] space-y-8">
+            <header class="space-y-5">
+                <div class="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--muted)]">
+                    @foreach ($post->categories->take(3) as $category)
                         @php $categoryTranslation = $category->translationFor($locale); @endphp
-                        <a href="{{ route('blog.category', $categoryTranslation?->slug ?? $category->id) }}"
-                            class="px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-sm">
+                        <a href="{{ route('blog.category', $categoryTranslation?->slug ?? $category->id) }}" class="editorial-chip">
                             {{ $categoryTranslation?->name ?? __('Category') }}
                         </a>
                     @endforeach
                 </div>
 
-                <div class="prose prose-slate max-w-none mt-10">
+                <h1 class="text-4xl font-extrabold tracking-[-0.04em] text-[color:var(--text)] md:text-5xl">
+                    {{ $translation?->title ?? __('Untitled') }}
+                </h1>
+
+                <p class="max-w-2xl text-lg leading-8 text-[color:var(--muted)]">
+                    {{ $translation?->excerpt ?? '' }}
+                </p>
+
+                <div class="flex flex-wrap items-center gap-3 text-sm text-[color:var(--muted)]">
+                    <span class="editorial-chip editorial-chip-primary">{{ $post->author?->name ?? __('Author') }}</span>
+                    <span>{{ optional($post->published_at)->format('M d, Y') ?? __('Draft') }}</span>
+                    <span>&middot;</span>
+                    <span>{{ $post->categories->count() }} {{ __('categories') }}</span>
+                </div>
+            </header>
+
+            @if ($post->previewMedia)
+                <figure class="editorial-card overflow-hidden">
+                    <img src="{{ $post->previewMedia->url() }}" alt="{{ $translation?->preview_image_alt ?? ($translation?->title ?? '') }}" class="h-auto w-full object-cover">
+                </figure>
+            @endif
+
+            <section class="editorial-card p-6 md:p-8">
+                <div class="article-content">
                     {!! $translation?->content !!}
                 </div>
-            </div>
-        </div>
 
-        <section class="space-y-6">
-            <div class="flex items-center justify-between gap-4">
-                <h2 class="text-2xl font-semibold">{{ __('Comments') }}</h2>
-                <span class="text-sm text-slate-500">{{ $comments->count() }}</span>
-            </div>
-
-            @auth
-                @if (auth()->user()->hasVerifiedEmail())
-                    <form action="{{ route('blog.comments.store', $post->translationFor($locale)?->slug ?? $post->id) }}" method="POST" class="rounded-3xl border border-slate-200 bg-white p-6 space-y-4 shadow-lg shadow-slate-900/5">
-                        @csrf
-                        <div>
-                            <label class="block text-sm font-medium text-slate-700 mb-2">{{ __('Add a comment') }}</label>
-                            <textarea name="content" rows="5" class="w-full rounded-2xl border border-slate-200 p-4" placeholder="{{ __('Write your comment here') }}">{{ old('content') }}</textarea>
-                        </div>
-                        <button type="submit" class="px-4 py-2 rounded-full bg-slate-900 text-white text-sm">{{ __('Post comment') }}</button>
-                    </form>
-                @else
-                    <div class="rounded-3xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
-                        {{ __('Verify your email before commenting.') }}
-                    </div>
-                @endif
-            @else
-                <div class="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-lg shadow-slate-900/5">
-                    <a href="{{ route('login') }}" class="font-medium text-slate-900">{{ __('Sign in') }}</a>
-                    {{ __('or') }}
-                    <a href="{{ route('register') }}" class="font-medium text-slate-900">{{ __('create an account') }}</a>
-                    {{ __('to join the discussion.') }}
+                <div class="mt-8 flex flex-wrap gap-2 border-t border-[color:var(--border)] pt-6">
+                    @foreach ($post->categories as $category)
+                        @php $categoryTranslation = $category->translationFor($locale); @endphp
+                        <a href="{{ route('blog.category', $categoryTranslation?->slug ?? $category->id) }}" class="editorial-chip">
+                            {{ $categoryTranslation?->name ?? __('Category') }}
+                        </a>
+                    @endforeach
                 </div>
-            @endauth
+            </section>
 
-            <div class="space-y-4">
-                @forelse ($comments as $comment)
-                    @include('frontend.blog.partials.comment', ['comment' => $comment, 'slug' => $post->translationFor($locale)?->slug ?? $post->id])
-                @empty
-                    <div class="rounded-3xl border border-slate-200 bg-white p-6 text-slate-500">
-                        {{ __('No comments yet.') }}
+            <section class="space-y-5">
+                <div class="flex items-end justify-between gap-4">
+                    <div>
+                        <div class="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--muted)]">{{ __('Discussion') }}</div>
+                        <h2 class="mt-2 text-2xl font-extrabold tracking-[-0.03em]">{{ __('Comments') }}</h2>
                     </div>
-                @endforelse
-            </div>
-        </section>
+                    <div class="text-sm text-[color:var(--muted)]">{{ $comments->count() }} {{ __('comments') }}</div>
+                </div>
+
+                @auth
+                    @if (auth()->user()->hasVerifiedEmail())
+                        <form action="{{ route('blog.comments.store', $postSlug) }}" method="POST" class="editorial-card p-6 md:p-8 space-y-4">
+                            @csrf
+                            <div>
+                                <label class="mb-2 block text-sm font-semibold text-[color:var(--muted)]">{{ __('Add a comment') }}</label>
+                                <textarea name="content" rows="5" class="editorial-textarea" placeholder="{{ __('Write your comment here') }}">{{ old('content') }}</textarea>
+                            </div>
+                            <button type="submit" class="editorial-button editorial-button-primary">{{ __('Post comment') }}</button>
+                        </form>
+                    @else
+                        <div class="editorial-card border-amber-200 bg-amber-50/90 p-6 text-sm text-amber-900">
+                            {{ __('Verify your email before commenting.') }}
+                        </div>
+                    @endif
+                @else
+                    <div class="editorial-card p-6 text-sm leading-7 text-[color:var(--muted)]">
+                        <a href="{{ route('login') }}" class="font-bold text-[color:var(--text)]">{{ __('Sign in') }}</a>
+                        {{ __('or') }}
+                        <a href="{{ route('register') }}" class="font-bold text-[color:var(--text)]">{{ __('create an account') }}</a>
+                        {{ __('to join the discussion.') }}
+                    </div>
+                @endauth
+
+                <div class="space-y-4">
+                    @forelse ($comments as $comment)
+                        @include('frontend.blog.partials.comment', ['comment' => $comment, 'slug' => $postSlug])
+                    @empty
+                        <div class="editorial-card p-6 text-[color:var(--muted)]">
+                            {{ __('No comments yet.') }}
+                        </div>
+                    @endforelse
+                </div>
+            </section>
+        </div>
     </article>
 @endsection

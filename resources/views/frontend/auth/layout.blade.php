@@ -12,36 +12,27 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link href="{{ URL('assets/vendors/keenicons/styles.bundle.css') }}" rel="stylesheet" />
     <link href="{{ URL('assets/css/styles.css') }}" rel="stylesheet" />
-    <style>
-        .page-bg {
-            background-image: radial-gradient(circle at top left, rgba(15, 23, 42, 0.08), transparent 35%),
-                linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
-        }
-    </style>
     @stack('style')
 </head>
 <body class="antialiased flex h-full text-base text-foreground bg-background">
-    <div class="flex items-center justify-center grow bg-center bg-no-repeat page-bg">
-        <div class="w-full">
-            @if (session('success'))
-                <div class="mx-auto max-w-[420px] w-full mb-4 px-4">
-                    <div class="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-                        {{ session('success') }}
-                    </div>
-                </div>
-            @endif
-
-            @if (session('error'))
-                <div class="mx-auto max-w-[420px] w-full mb-4 px-4">
-                    <div class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
-                        {{ session('error') }}
-                    </div>
-                </div>
-            @endif
-
-            @yield('content')
+    @if (session('success'))
+        <div class="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[min(92vw,520px)]">
+            <div class="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 shadow-sm">
+                {{ session('success') }}
+            </div>
         </div>
-    </div>
+    @endif
+
+    @if (session('error'))
+        <div class="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[min(92vw,520px)]">
+            <div class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 shadow-sm">
+                {{ session('error') }}
+            </div>
+        </div>
+    @endif
+
+    @yield('content')
+
     <script src="{{ URL('assets/js/core.bundle.js') }}"></script>
     <script src="{{ URL('assets/vendors/ktui/ktui.min.js') }}"></script>
     @stack('script')

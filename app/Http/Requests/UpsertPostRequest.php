@@ -19,6 +19,7 @@ class UpsertPostRequest extends FormRequest
             'is_featured' => ['nullable', 'boolean'],
             'published_at' => ['nullable', 'date'],
             'preview_image' => ['nullable', 'file', 'max:5120', 'mimes:jpg,jpeg,png,webp,gif,svg'],
+            'preview_media_id' => ['nullable', 'integer', 'exists:media,id'],
             'preview_image_alt' => ['nullable', 'string', 'max:255'],
             'category_ids' => ['nullable', 'array'],
             'category_ids.*' => ['integer', 'exists:categories,id'],

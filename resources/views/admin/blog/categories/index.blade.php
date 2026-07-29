@@ -16,7 +16,7 @@
             </div>
             <div class="flex items-center flex-wrap gap-1.5 lg:gap-3.5">
                 <a href="{{ route('admin.categories.create') }}" class="kt-btn kt-btn-primary">
-                    <i class="ki-outline ki-plus-circle text-lg me-1"></i>
+                    <i class="ki-filled ki-plus-circle text-lg me-1"></i>
                     {{ __('Add new') }}
                 </a>
             </div>
@@ -25,92 +25,144 @@
 @endsection
 
 @section('content')
-    <div class="grid lg:grid-cols-3 gap-5 lg:gap-7.5 items-stretch">
-        <div class="lg:col-span-3">
-            <div class="kt-card kt-card-grid h-full min-w-full">
-                <div class="kt-card-header">
-                    <h3 class="kt-card-title">{{ __('Search') }} {{ __('Categories') }}</h3>
-                </div>
-                <div class="kt-card-content">
-                    <form action="{{ route('admin.categories.index') }}" method="GET" class="space-y-6">
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 p-5">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">{{ __('Locale') }}</label>
-                                <select name="locale" class="select2 mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring focus:ring-primary/50">
-                                    @foreach ($locales ?? [] as $item)
-                                        <option value="{{ $item }}" {{ ($locale ?? '') === $item ? 'selected' : '' }}>
-                                            {{ strtoupper($item) }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">{{ __('Keyword Search') }}</label>
-                                <input type="text" name="search" value="{{ $search ?? '' }}"
-                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring focus:ring-primary/50"
-                                    placeholder="{{ __('Search by name') }}" />
-                            </div>
-                            <div class="flex items-end gap-2 mt-1">
-                                <button type="submit" class="kt-btn kt-btn-primary">
-                                    <i class="ki-outline ki-magnifier fs-2"></i>{{ __('search') }}
-                                </button>
-                                <a href="{{ route('admin.categories.index') }}" class="kt-btn kt-btn-primary">
-                                    <i class="ki-outline ki-arrows-loop fs-2"></i> {{ __('reset') }}
-                                </a>
-                            </div>
-                        </div>
-                    </form>
-                </div>
+    <div class="grid xl:grid-cols-4 gap-5 lg:gap-7.5 mb-7.5">
+        <div class="kt-card">
+            <div class="kt-card-content p-5">
+                <div class="text-sm text-secondary-foreground">{{ __('Total categories') }}</div>
+                <div class="text-2xl font-semibold text-mono mt-1">{{ $stats['total'] ?? 0 }}</div>
             </div>
         </div>
+        <div class="kt-card">
+            <div class="kt-card-content p-5">
+                <div class="text-sm text-secondary-foreground">{{ __('Active') }}</div>
+                <div class="text-2xl font-semibold text-mono mt-1">{{ $stats['active'] ?? 0 }}</div>
+            </div>
+        </div>
+        <div class="kt-card">
+            <div class="kt-card-content p-5">
+                <div class="text-sm text-secondary-foreground">{{ __('Inactive') }}</div>
+                <div class="text-2xl font-semibold text-mono mt-1">{{ $stats['inactive'] ?? 0 }}</div>
+            </div>
+        </div>
+        <div class="kt-card">
+            <div class="kt-card-content p-5">
+                <div class="text-sm text-secondary-foreground">{{ __('Root categories') }}</div>
+                <div class="text-2xl font-semibold text-mono mt-1">{{ $stats['parents'] ?? 0 }}</div>
+            </div>
+        </div>
+    </div>
 
-        <div class="lg:col-span-3">
-            <div class="kt-card kt-card-grid h-full min-w-full">
-                <div class="kt-card-header">
-                    <h3 class="kt-card-title">{{ __('List') }}</h3>
-                </div>
-                <div class="kt-card-table">
-                    <div class="kt-table-wrapper kt-scrollable-x-auto">
-                        <table class="kt-table">
-                            <thead>
-                                <tr>
-                                    <th>#</th>
-                                    <th>{{ __('Name') }}</th>
-                                    <th>{{ __('Parent') }}</th>
-                                    <th>{{ __('Status') }}</th>
-                                    <th>{{ __('Action') }}</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @forelse ($categories as $category)
-                                    @php
-                                        $translation = $category->translationFor($locale ?? config('blog.default_locale'));
-                                        $parentTranslation = $category->parent?->translationFor($locale ?? config('blog.default_locale'));
-                                    @endphp
-                                    <tr>
-                                        <td>{{ $category->id }}</td>
-                                        <td>{{ $translation?->name ?? '-' }}</td>
-                                        <td>{{ $parentTranslation?->name ?? '-' }}</td>
-                                        <td>{{ ucfirst($category->status) }}</td>
-                                        <td class="text-center flex justify-center space-x-2">
-                                            <a href="{{ route('admin.categories.edit', $category) }}" class="kt-btn kt-btn-sm kt-btn-primary">
-                                                <i class="ki-filled ki-pencil"></i>
-                                            </a>
-                                        </td>
-                                    </tr>
-                                @empty
-                                    <tr>
-                                        <td colspan="5" class="text-center text-muted">{{ __('No items found') }}</td>
-                                    </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
+    <div class="kt-card kt-card-grid mb-7.5">
+        <div class="kt-card-header">
+            <div>
+                <h3 class="kt-card-title">{{ __('Filter categories') }}</h3>
+                <div class="text-sm text-secondary-foreground">{{ __('Search translated names and change locale context.') }}</div>
+            </div>
+        </div>
+        <div class="kt-card-content p-5">
+            <form action="{{ route('admin.categories.index') }}" method="GET">
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-end">
+                    <div class="lg:col-span-3">
+                        <label class="kt-form-label">{{ __('Locale') }}</label>
+                        <select name="locale" class="kt-input w-full select2">
+                            @foreach ($locales ?? [] as $item)
+                                <option value="{{ $item }}" {{ ($locale ?? '') === $item ? 'selected' : '' }}>
+                                    {{ strtoupper($item) }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="lg:col-span-7">
+                        <label class="kt-form-label">{{ __('Keyword Search') }}</label>
+                        <div class="kt-input">
+                            <i class="ki-filled ki-magnifier"></i>
+                            <input type="text" name="search" value="{{ $search ?? '' }}" placeholder="{{ __('Search by name') }}" />
+                        </div>
+                    </div>
+                    <div class="lg:col-span-2 flex gap-2">
+                        <button type="submit" class="kt-btn kt-btn-primary w-full justify-center">
+                            <i class="ki-filled ki-magnifier me-1"></i>{{ __('Search') }}
+                        </button>
+                        <a href="{{ route('admin.categories.index') }}" class="kt-btn kt-btn-outline w-full justify-center">
+                            {{ __('Reset') }}
+                        </a>
                     </div>
                 </div>
-                <div class="p-5">
-                    {{ $categories->links() }}
-                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="kt-card kt-card-grid">
+        <div class="kt-card-header">
+            <div>
+                <h3 class="kt-card-title">{{ __('Category list') }}</h3>
+                <div class="text-sm text-secondary-foreground">{{ __('Manage parents, translation data, and publishing state.') }}</div>
             </div>
+        </div>
+        <div class="kt-card-table">
+            <div class="kt-table-wrapper kt-scrollable-x-auto">
+                <table class="kt-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>{{ __('Name') }}</th>
+                            <th>{{ __('Parent') }}</th>
+                            <th>{{ __('Status') }}</th>
+                            <th class="text-end">{{ __('Action') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse ($categories as $category)
+                            @php
+                                $translation = $category->translationFor($locale ?? config('blog.default_locale'));
+                                $parentTranslation = $category->parent?->translationFor($locale ?? config('blog.default_locale'));
+                                $statusClasses = $category->status === 'active' ? 'kt-badge-success' : 'kt-badge-secondary';
+                            @endphp
+                            <tr>
+                                <td class="font-medium text-secondary-foreground">{{ $category->id }}</td>
+                                <td>
+                                    <div class="font-medium text-mono">{{ $translation?->name ?? '-' }}</div>
+                                    @if ($translation?->description)
+                                        <div class="text-sm text-secondary-foreground">
+                                            {{ \Illuminate\Support\Str::limit($translation->description, 90) }}
+                                        </div>
+                                    @endif
+                                </td>
+                                <td>{{ $parentTranslation?->name ?? '-' }}</td>
+                                <td>
+                                    <span class="kt-badge {{ $statusClasses }}">
+                                        {{ ucfirst($category->status) }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="flex justify-end gap-2">
+                                        <a href="{{ route('admin.categories.edit', $category) }}" class="kt-btn kt-btn-sm kt-btn-primary">
+                                            <i class="ki-filled ki-pencil"></i>
+                                        </a>
+                                        <form action="{{ route('admin.categories.destroy', $category) }}" method="POST"
+                                            onsubmit="return confirm('{{ __('Are you sure?') }}');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="kt-btn kt-btn-sm kt-btn-danger">
+                                                <i class="ki-filled ki-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="5" class="text-center text-secondary-foreground py-10">
+                                    {{ __('No items found') }}
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="p-5">
+            {{ $categories->links() }}
         </div>
     </div>
 @endsection

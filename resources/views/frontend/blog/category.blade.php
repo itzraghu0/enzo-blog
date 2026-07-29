@@ -16,15 +16,20 @@
 
     $structuredData = [
         '@context' => 'https://schema.org',
-        '@type' => 'CollectionPage',
-        'name' => $translation?->name ?? __('Category'),
-        'url' => url()->current(),
-        'description' => $translation?->description ?? '',
-        'mainEntity' => [
-            '@type' => 'ItemList',
-            'itemListOrder' => 'https://schema.org/ItemListOrderDescending',
-            'numberOfItems' => count($itemList),
-            'itemListElement' => $itemList,
+        '@graph' => [
+            [
+                '@type' => 'CollectionPage',
+                '@id' => url()->current() . '#collection',
+                'name' => $translation?->name ?? __('Category'),
+                'url' => url()->current(),
+                'description' => $translation?->description ?? '',
+                'mainEntity' => [
+                    '@type' => 'ItemList',
+                    'itemListOrder' => 'https://schema.org/ItemListOrderDescending',
+                    'numberOfItems' => count($itemList),
+                    'itemListElement' => $itemList,
+                ],
+            ],
         ],
     ];
 @endphp
@@ -34,36 +39,53 @@
 @endpush
 
 @section('content')
-    <section class="max-w-5xl mx-auto space-y-8">
-        <div class="rounded-3xl bg-white border border-slate-200 p-8 shadow-lg shadow-slate-900/5">
-            <p class="uppercase tracking-[0.3em] text-xs text-slate-500 mb-3">{{ __('Category') }}</p>
-            <h1 class="text-4xl md:text-5xl font-semibold">{{ $translation?->name ?? __('Category') }}</h1>
-            <p class="mt-4 text-slate-600 max-w-3xl">{{ $translation?->description ?? '' }}</p>
+    <section class="editorial-shell space-y-8">
+        <div class="editorial-card overflow-hidden">
+            <div class="bg-[linear-gradient(135deg,rgba(0,74,198,0.10),rgba(255,255,255,0.00))] p-6 md:p-8">
+                <div class="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--muted)]">{{ __('Category') }}</div>
+                <h1 class="mt-3 text-4xl font-extrabold tracking-[-0.04em] text-[color:var(--text)] md:text-5xl">
+                    {{ $translation?->name ?? __('Category') }}
+                </h1>
+                <p class="mt-4 max-w-3xl text-base leading-8 text-[color:var(--muted)]">
+                    {{ $translation?->description ?? '' }}
+                </p>
+            </div>
         </div>
 
-        <div class="grid md:grid-cols-2 gap-6">
+        <div class="grid gap-6 md:grid-cols-2">
             @forelse ($posts as $post)
-                @php $postTranslation = $post->translationFor($locale); @endphp
-                <article class="rounded-3xl bg-white border border-slate-200 overflow-hidden shadow-lg shadow-slate-900/5">
-                    @if ($post->previewMedia)
-                        <a href="{{ route('blog.show', $postTranslation?->slug ?? $post->id) }}">
-                            <img src="{{ $post->previewMedia->url() }}" alt="{{ $postTranslation?->preview_image_alt ?? $postTranslation?->title ?? '' }}" class="w-full h-56 object-cover">
-                        </a>
-                    @endif
+                @php
+                    $postTranslation = $post->translationFor($locale);
+                @endphp
+                <article class="editorial-card overflow-hidden">
+                    <a href="{{ route('blog.show', $postTranslation?->slug ?? $post->id) }}" class="block">
+                        <div class="aspect-[16/10] bg-[color:var(--surface-3)]">
+                            @if ($post->previewMedia)
+                                <img src="{{ $post->previewMedia->url() }}" alt="{{ $postTranslation?->preview_image_alt ?? $postTranslation?->title ?? '' }}" class="h-full w-full object-cover">
+                            @endif
+                        </div>
+                    </a>
                     <div class="p-6">
-                        <h2 class="text-2xl font-semibold leading-tight">
-                            <a href="{{ route('blog.show', $postTranslation?->slug ?? $post->id) }}">{{ $postTranslation?->title ?? __('Untitled') }}</a>
+                        <div class="editorial-chip editorial-chip-primary">{{ $post->author?->name ?? __('Author') }}</div>
+                        <h2 class="mt-4 text-2xl font-bold tracking-[-0.03em] text-[color:var(--text)]">
+                            <a href="{{ route('blog.show', $postTranslation?->slug ?? $post->id) }}" class="hover:text-[color:var(--primary)]">
+                                {{ $postTranslation?->title ?? __('Untitled') }}
+                            </a>
                         </h2>
-                        <p class="mt-3 text-slate-600 line-clamp-3">{{ $postTranslation?->excerpt ?? '' }}</p>
+                        <p class="mt-3 text-sm leading-7 text-[color:var(--muted)]">
+                            {{ \Illuminate\Support\Str::limit(strip_tags($postTranslation?->excerpt ?? ''), 180) }}
+                        </p>
                     </div>
                 </article>
             @empty
-                <div class="rounded-3xl bg-white border border-slate-200 p-10 text-slate-500">
+                <div class="editorial-card p-10 text-center text-[color:var(--muted)]">
                     {{ __('No published posts in this category yet.') }}
                 </div>
             @endforelse
         </div>
 
-        <div>{{ $posts->links() }}</div>
+        <div>
+            {{ $posts->links() }}
+        </div>
     </section>
 @endsection

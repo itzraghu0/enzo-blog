@@ -26,8 +26,24 @@ class PostController extends Controller
         $locale = $request->get('locale', config('blog.default_locale'));
         $search = trim((string) $request->get('search', ''));
 
+        $stats = [
+            'total' => Post::query()->count(),
+            'published' => Post::query()->where('status', 'published')->count(),
+            'draft' => Post::query()->where('status', 'draft')->count(),
+            'featured' => Post::query()->where('is_featured', true)->count(),
+        ];
+
         $posts = Post::query()
-            ->with(['translations', 'categories.translations', 'author'])
+            ->select(['id', 'user_id', 'status', 'is_featured', 'published_at', 'created_at', 'updated_at'])
+            ->with([
+                'author:id,name',
+                'translations' => function ($query) use ($locale): void {
+                    $query->select(['id', 'post_id', 'locale', 'title', 'slug', 'excerpt']);
+                },
+                'categories.translations' => function ($query): void {
+                    $query->select(['id', 'category_id', 'locale', 'name', 'slug']);
+                },
+            ])
             ->when($search !== '', function ($query) use ($search, $locale): void {
                 $query->whereHas('translations', function ($translationQuery) use ($search, $locale): void {
                     $translationQuery->where('locale', $locale)
@@ -42,6 +58,8 @@ class PostController extends Controller
             'posts' => $posts,
             'locale' => $locale,
             'search' => $search,
+            'stats' => $stats,
+            'locales' => config('blog.supported_locales', [config('blog.default_locale', 'en')]),
         ]);
     }
 
@@ -90,10 +108,15 @@ class PostController extends Controller
         );
 
         $post = $this->postService->create($data);
-        $this->postService->syncPreviewImage($post, $request->file('preview_image'), [
-            'alt_text' => $request->input('preview_image_alt'),
-            'locale' => config('blog.default_locale'),
-        ]);
+        $this->postService->syncPreviewImage(
+            $post,
+            $request->file('preview_image'),
+            $request->filled('preview_media_id') ? \App\Models\Media::query()->find($request->input('preview_media_id')) : null,
+            [
+                'alt_text' => $request->input('preview_image_alt'),
+                'locale' => config('blog.default_locale'),
+            ],
+        );
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -110,10 +133,15 @@ class PostController extends Controller
     public function update(UpsertPostRequest $request, Post $post): JsonResponse|RedirectResponse
     {
         $post = $this->postService->update($post, $request->validated());
-        $this->postService->syncPreviewImage($post, $request->file('preview_image'), [
-            'alt_text' => $request->input('preview_image_alt'),
-            'locale' => config('blog.default_locale'),
-        ]);
+        $this->postService->syncPreviewImage(
+            $post,
+            $request->file('preview_image'),
+            $request->filled('preview_media_id') ? \App\Models\Media::query()->find($request->input('preview_media_id')) : null,
+            [
+                'alt_text' => $request->input('preview_image_alt'),
+                'locale' => config('blog.default_locale'),
+            ],
+        );
 
         if ($request->expectsJson()) {
             return response()->json([

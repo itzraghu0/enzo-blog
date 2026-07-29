@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Validator;
@@ -19,7 +20,7 @@ class AuthController extends Controller
     public function login(Request $request): View|RedirectResponse
     {
         if ($request->method() === 'POST') {
-            $validatedData = $request->validate([
+            $request->validate([
                 'email' => 'required|email|exists:users,email',
                 'password' => 'required',
             ]);
@@ -34,17 +35,60 @@ class AuthController extends Controller
                     $user->sendEmailVerificationNotification();
 
                     return redirect()
-                        ->route('verification.notice', ['email' => $user->email])
+                        ->route('verification.notice', ['email' => $user->email, 'area' => 'frontend'])
                         ->with('error', __('Please verify your email before logging in.'));
                 }
 
-                return redirect()->route('dashboard')->with('success', __('signin_success'));
+                if ($user?->canManageBlog()) {
+                    return redirect()->route('admin.dashboard')->with('success', __('signin_success'));
+                }
+
+                return redirect()->route('blog.index')->with('success', __('signin_success'));
             }
 
             return redirect()->route('login')->with('error', __('signin_error'));
         }
 
         return view('frontend.auth.login');
+    }
+
+    public function adminLogin(Request $request): View|RedirectResponse
+    {
+        if ($request->method() === 'POST') {
+            $request->validate([
+                'email' => 'required|email|exists:users,email',
+                'password' => 'required',
+            ]);
+
+            $rememberMe = $request->has('remember_me');
+
+            if (Auth::attempt(['email' => $request->email, 'password' => $request->password], $rememberMe)) {
+                $user = Auth::user();
+
+                if ($user !== null && ! $user->canManageBlog()) {
+                    Auth::logout();
+
+                    return redirect()
+                        ->route('admin.login')
+                        ->with('error', __('You do not have access to the admin area.'));
+                }
+
+                if ($user !== null && ! $user->hasVerifiedEmail()) {
+                    Auth::logout();
+                    $user->sendEmailVerificationNotification();
+
+                    return redirect()
+                        ->route('verification.notice', ['email' => $user->email, 'area' => 'admin'])
+                        ->with('error', __('Please verify your email before logging in.'));
+                }
+
+                return redirect()->route('admin.dashboard')->with('success', __('signin_success'));
+            }
+
+            return redirect()->route('admin.login')->with('error', __('signin_error'));
+        }
+
+        return view('admin.auth.login');
     }
 
     public function register(): View
@@ -61,10 +105,15 @@ class AuthController extends Controller
             'role' => User::ROLE_VIEWER,
         ]);
 
+        Cache::forget('admin.dashboard.overview');
+
         $user->sendEmailVerificationNotification();
 
         return redirect()
-            ->route('verification.notice', ['email' => $user->email])
+            ->route('verification.notice', [
+                'email' => $user->email,
+                'area' => $user->canManageBlog() ? 'admin' : 'frontend',
+            ])
             ->with('success', __('Registration successful. Please verify your email before logging in.'));
     }
 
@@ -72,6 +121,7 @@ class AuthController extends Controller
     {
         return view('frontend.auth.verify-notice', [
             'email' => (string) $request->query('email', session('registered_email', '')),
+            'area' => (string) $request->query('area', 'frontend'),
         ]);
     }
 
@@ -86,16 +136,23 @@ class AuthController extends Controller
         if (! $user->hasVerifiedEmail()) {
             $user->forceFill(['email_verified_at' => now()])->save();
             event(new Verified($user));
+            Cache::forget('admin.dashboard.overview');
         }
 
         return redirect()
-            ->route('login')
+            ->route($user->canManageBlog() ? 'admin.login' : 'login')
             ->with('success', __('Email verified successfully. You can now log in.'));
     }
 
     public function logout(): RedirectResponse
     {
+        $user = Auth::user();
         Auth::logout();
+
+        if ($user?->canManageBlog()) {
+            return redirect()->route('admin.login')->with('success', __('signout_success'));
+        }
+
         return redirect()->route('login')->with('success', __('signout_success'));
     }
 

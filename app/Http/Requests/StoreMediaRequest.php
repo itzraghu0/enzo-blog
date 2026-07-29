@@ -21,7 +21,6 @@ class StoreMediaRequest extends FormRequest
             'alt_text' => ['nullable', 'string', 'max:255'],
             'title' => ['nullable', 'string', 'max:255'],
             'caption' => ['nullable', 'string', 'max:2000'],
-            'disk' => ['nullable', 'string', 'max:100'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
         ];
     }

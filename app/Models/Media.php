@@ -7,7 +7,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Facades\Storage;
 
 class Media extends Model
 {
@@ -49,6 +48,6 @@ class Media extends Model
 
     public function url(): string
     {
-        return Storage::disk($this->disk)->url($this->path);
+        return asset($this->path);
     }
 }

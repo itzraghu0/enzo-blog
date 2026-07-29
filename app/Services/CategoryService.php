@@ -7,6 +7,7 @@ use App\Models\CategoryTranslation;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class CategoryService
@@ -23,6 +24,7 @@ class CategoryService
         return DB::transaction(function () use ($data): Category {
             $category = Category::create(Arr::only($data, ['parent_id', 'status', 'sort_order']));
             $this->syncTranslations($category, $data['translations'] ?? []);
+            $this->flushListingCaches();
 
             return $category->load(['translations', 'children']);
         });
@@ -37,20 +39,55 @@ class CategoryService
                 $this->syncTranslations($category, $data['translations'] ?? []);
             }
 
+            $this->flushListingCaches();
+
             return $category->load(['translations', 'children']);
         });
     }
 
     public function delete(Category $category): bool
     {
-        return (bool) DB::transaction(static fn (): bool => (bool) $category->delete());
+        return (bool) DB::transaction(function () use ($category): bool {
+            $deleted = (bool) $category->delete();
+            $this->flushListingCaches();
+
+            return $deleted;
+        });
     }
 
     public function featured(): Collection
     {
+        $locale = app()->getLocale() ?: config('blog.default_locale', 'en');
+        $defaultLocale = config('blog.default_locale', 'en');
+
+        $categoryIds = Cache::remember("blog.featured_category_ids.{$locale}", now()->addMinutes(15), function () use ($locale, $defaultLocale): array {
+            return Category::query()
+                ->select(['id'])
+                ->with([
+                    'translations' => function ($query) use ($locale, $defaultLocale): void {
+                        $query->select(['id', 'category_id', 'locale'])
+                            ->whereIn('locale', [$locale, $defaultLocale]);
+                    },
+                ])
+                ->where('status', 'active')
+                ->orderBy('sort_order')
+                ->pluck('id')
+                ->all();
+        });
+
         return Category::query()
-            ->with(['translations', 'children.translations'])
-            ->where('status', 'active')
+            ->select(['id', 'parent_id', 'status', 'sort_order'])
+            ->with([
+                'translations' => function ($query) use ($locale, $defaultLocale): void {
+                    $query->select(['id', 'category_id', 'locale', 'name', 'slug'])
+                        ->whereIn('locale', [$locale, $defaultLocale]);
+                },
+                'children.translations' => function ($query) use ($locale, $defaultLocale): void {
+                    $query->select(['id', 'category_id', 'locale', 'name', 'slug'])
+                        ->whereIn('locale', [$locale, $defaultLocale]);
+                },
+            ])
+            ->whereKey($categoryIds)
             ->orderBy('sort_order')
             ->get();
     }
@@ -61,13 +98,33 @@ class CategoryService
         $defaultLocale = config('blog.default_locale', 'en');
 
         return Category::query()
-            ->with(['translations', 'children.translations'])
+            ->select(['id', 'parent_id', 'status', 'sort_order'])
+            ->with([
+                'translations' => function ($query) use ($locale, $defaultLocale): void {
+                    $query->select(['id', 'category_id', 'locale', 'name', 'slug'])
+                        ->whereIn('locale', [$locale, $defaultLocale]);
+                },
+                'children.translations' => function ($query) use ($locale, $defaultLocale): void {
+                    $query->select(['id', 'category_id', 'locale', 'name', 'slug'])
+                        ->whereIn('locale', [$locale, $defaultLocale]);
+                },
+            ])
             ->whereHas('translations', function ($query) use ($slug, $locale): void {
                 $query->where('locale', $locale)->where('slug', $slug);
             })
             ->first()
             ?? Category::query()
-                ->with(['translations', 'children.translations'])
+                ->select(['id', 'parent_id', 'status', 'sort_order'])
+                ->with([
+                    'translations' => function ($query) use ($defaultLocale): void {
+                        $query->select(['id', 'category_id', 'locale', 'name', 'slug'])
+                            ->where('locale', $defaultLocale);
+                    },
+                    'children.translations' => function ($query) use ($defaultLocale): void {
+                        $query->select(['id', 'category_id', 'locale', 'name', 'slug'])
+                            ->where('locale', $defaultLocale);
+                    },
+                ])
                 ->whereHas('translations', function ($query) use ($slug, $defaultLocale): void {
                     $query->where('locale', $defaultLocale)->where('slug', $slug);
                 })
@@ -76,8 +133,23 @@ class CategoryService
 
     public function publishedPosts(Category $category, int $perPage = 9): LengthAwarePaginator
     {
+        $locale = app()->getLocale() ?: config('blog.default_locale', 'en');
+        $defaultLocale = config('blog.default_locale', 'en');
+
         return $category->posts()
-            ->with(['translations', 'categories.translations', 'previewMedia', 'author'])
+            ->select(['posts.id', 'posts.user_id', 'posts.status', 'posts.is_featured', 'posts.published_at', 'posts.created_at', 'posts.updated_at'])
+            ->with([
+                'translations' => function ($query) use ($locale, $defaultLocale): void {
+                    $query->select(['id', 'post_id', 'locale', 'title', 'slug', 'excerpt', 'preview_image_alt'])
+                        ->whereIn('locale', [$locale, $defaultLocale]);
+                },
+                'categories.translations' => function ($query) use ($locale, $defaultLocale): void {
+                    $query->select(['id', 'category_id', 'locale', 'name', 'slug'])
+                        ->whereIn('locale', [$locale, $defaultLocale]);
+                },
+                'previewMedia:id,user_id,disk,path,filename,original_name,mime_type,size,alt_text,title,caption,collection,locale,mediable_type,mediable_id,sort_order,created_at,updated_at',
+                'author:id,name',
+            ])
             ->where('status', 'published')
             ->latest('published_at')
             ->paginate($perPage)
@@ -121,5 +193,15 @@ class CategoryService
                 Arr::only($payload, $fields)
             );
         }
+    }
+
+    private function flushListingCaches(): void
+    {
+        foreach (config('blog.supported_locales', [config('blog.default_locale', 'en')]) as $locale) {
+            Cache::forget("blog.featured_categories.{$locale}");
+            Cache::forget("blog.featured_category_ids.{$locale}");
+        }
+
+        Cache::forget('admin.dashboard.overview');
     }
 }
