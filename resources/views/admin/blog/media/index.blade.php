@@ -65,7 +65,7 @@
             </a>
         </div>
         <div class="kt-card-content p-5">
-            <div class="max-h-[780px] overflow-y-auto pe-2" data-media-scroll-area>
+            <div class="pe-2" style="height: 700px; overflow-y: auto;" data-media-scroll-area>
                 <div class="grid grid-cols-3 gap-2" data-media-grid>
                     @forelse ($mediaItems as $media)
                         <div class="rounded-2xl border border-border bg-background overflow-hidden shadow-sm"
@@ -142,6 +142,17 @@
             let lastPage = {{ $mediaItems->lastPage() }};
             let isLoading = false;
 
+            function mediaQueryData(nextPage) {
+                const params = Object.fromEntries(new URLSearchParams(window.location.search));
+
+                return {
+                    ...params,
+                    page: nextPage,
+                    per_page: 50,
+                    type: params.type || 'image',
+                };
+            }
+
             function escapeHtml(value) {
                 return String(value || '')
                     .replace(/&/g, '&amp;')
@@ -203,12 +214,9 @@
                     dataType: 'json',
                     headers: {
                         Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
                     },
-                    data: {
-                        page: page + 1,
-                        per_page: 50,
-                        type: 'image',
-                    },
+                    data: mediaQueryData(page + 1),
                 }).done(function(payload) {
                     page = payload.meta.current_page;
                     lastPage = payload.meta.last_page;
@@ -225,13 +233,21 @@
                 });
             }
 
-            $scrollArea.on('scroll', function() {
-                const nearBottom = this.scrollTop + this.clientHeight >= this.scrollHeight - 240;
+            function checkAndLoadMore() {
+                const scrollArea = $scrollArea.get(0);
+
+                if (!scrollArea) {
+                    return;
+                }
+
+                const nearBottom = scrollArea.scrollTop + scrollArea.clientHeight >= scrollArea.scrollHeight - 80;
 
                 if (nearBottom) {
                     loadMore();
                 }
-            });
+            }
+
+            $scrollArea.on('scroll', checkAndLoadMore);
 
             $grid.on('click', '[data-copy-url]', function() {
                 navigator.clipboard.writeText($(this).data('copy-url') || '');
