@@ -111,7 +111,17 @@
                 <article class="news-card">
                     <?php if ($entry->preview_image_url): ?>
                         <a href="<?php echo e($postUrl); ?>" class="news-image">
-                            <img src="<?php echo e($entry->preview_image_url); ?>" alt="<?php echo e($previewAlt); ?>">
+                            <img
+                                src="<?php echo e($entry->preview_image_sm_url ?? $entry->preview_image_url); ?>"
+                                srcset="<?php echo e(collect([
+                                    ($entry->preview_image_sm_url ?? null) ? $entry->preview_image_sm_url . ' 360w' : null,
+                                    ($entry->preview_image_md_url ?? null) ? $entry->preview_image_md_url . ' 768w' : null,
+                                    $entry->preview_image_url . ' 1200w',
+                                ])->filter()->implode(', ')); ?>"
+                                sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                                alt="<?php echo e($previewAlt); ?>"
+                                loading="lazy"
+                                decoding="async">
                         </a>
                     <?php else: ?>
                         <a href="<?php echo e($postUrl); ?>" class="news-image news-image-placeholder" aria-label="<?php echo e($entry->title ?? __('Untitled')); ?>">

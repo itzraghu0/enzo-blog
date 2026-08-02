@@ -2,6 +2,9 @@
 
 namespace App\Services;
 
+use App\Models\Post;
+use App\Models\User;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Hash;
@@ -33,6 +36,10 @@ class JtlBlogImportService
     /** @var array<int, string> */
     private array $logs = [];
 
+    public function __construct(private readonly MediaService $mediaService)
+    {
+    }
+
     /** @return array{success: bool, logs: array<int, string>} */
     public function import(array $options = []): array
     {
@@ -40,10 +47,12 @@ class JtlBlogImportService
         $this->target = ($options['target'] ?? '') !== '' ? (string) $options['target'] : null;
         $this->chunk = max(50, (int) ($options['chunk'] ?? 500));
         $this->defaultUserID = (int) ($options['default_user_id'] ?? 1);
-        $this->dryRun = false;
+        $this->dryRun = (bool) ($options['dry_run'] ?? false);
         $this->preserveIDs = (bool) ($options['preserve_ids'] ?? false);
-        $this->sourceRoot = rtrim((string) ($options['source_root'] ?? ''), "\\/");
-        $this->mediaRoot = trim((string) ($options['media_root'] ?? 'media/blog/jtl'), "\\/");
+        $sourceRoot = rtrim((string) ($options['source_root'] ?? ''), "\\/");
+        $this->sourceRoot = $sourceRoot !== '' ? $sourceRoot : base_path();
+        $mediaRoot = trim((string) ($options['media_root'] ?? ''), "\\/");
+        $this->mediaRoot = $mediaRoot !== '' ? $mediaRoot : trim(config('blog.media_directory', 'media/blog'), "\\/");
         $this->publicPrefix = rtrim((string) ($options['public_prefix'] ?? '/'), '/') . '/';
         $this->postModel = (string) ($options['post_model'] ?? 'App\\Models\\Post');
         $this->categoryModel = (string) ($options['category_model'] ?? 'App\\Models\\Category');
@@ -51,6 +60,8 @@ class JtlBlogImportService
         $this->postMap = [];
         $this->categoryMap = [];
         $this->commentMap = [];
+
+        $this->configureRuntime();
 
         $this->configureSourceConnection($options['database'] ?? 'cupssy', $options['username'] ?? 'root', $options['password'] ?? 'root');
 
@@ -64,8 +75,8 @@ class JtlBlogImportService
             $this->importCategories();
             $this->importCategoryTranslations();
             $this->importPosts();
-            $this->importPostTranslations();
             $this->importPostCategories();
+            $this->importPostPreviewMedia();
             $this->importComments();
             $this->repairAutoIncrements();
             $this->info('JTL blog import finished.');
@@ -111,6 +122,15 @@ class JtlBlogImportService
         DB::purge('jtl_temp');
     }
 
+    private function configureRuntime(): void
+    {
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(0);
+        }
+
+        @ini_set('max_execution_time', '0');
+    }
+
     private function info(string $message): void
     {
         $this->logs[] = '[info] '.$message;
@@ -141,6 +161,26 @@ class JtlBlogImportService
                 throw new \RuntimeException("Source table {$table} does not exist on connection {$this->source}.");
             }
         }
+
+        $this->validateSourceColumns('tnews', ['kNews', 'nAktiv', 'dErstellt', 'dGueltigVon', 'cPreviewImage']);
+        $this->validateSourceColumns('tnewssprache', ['id', 'kNews', 'languageID', 'languageCode', 'title', 'content', 'preview', 'metaTitle', 'metaDescription']);
+        $this->validateSourceColumns('tnewskategorie', ['kNewsKategorie', 'kParent', 'nAktiv', 'nSort', 'dLetzteAktualisierung']);
+        $this->validateSourceColumns('tnewskategoriesprache', ['id', 'kNewsKategorie', 'languageID', 'languageCode', 'name', 'description', 'metaTitle', 'metaDescription']);
+
+        $blankPostTitles = $this->sourceDB()->table('tnewssprache')
+            ->where(static function ($query): void {
+                $query->whereNull('title')->orWhere('title', '');
+            })
+            ->count();
+        $blankPostContent = $this->sourceDB()->table('tnewssprache')
+            ->where(static function ($query): void {
+                $query->whereNull('content')->orWhere('content', '');
+            })
+            ->count();
+
+        if ($blankPostTitles > 0 || $blankPostContent > 0) {
+            $this->warn("JTL post translations with blank title: {$blankPostTitles}; blank content: {$blankPostContent}.");
+        }
     }
 
     private function validateTarget(): void
@@ -149,6 +189,40 @@ class JtlBlogImportService
             if (!$this->targetDB()->getSchemaBuilder()->hasTable($table)) {
                 $connection = $this->target ?? config('database.default');
                 throw new \RuntimeException("Target table {$table} does not exist on connection {$connection}.");
+            }
+        }
+
+        $this->validateTargetColumns('posts', ['id', 'user_id', 'status', 'published_at', 'created_at', 'updated_at', 'deleted_at']);
+        $this->validateTargetColumns('post_translations', ['post_id', 'locale', 'title', 'slug', 'excerpt', 'content', 'seo_title', 'meta_description', 'og_title', 'og_description', 'canonical_url', 'preview_image_alt']);
+        $this->validateTargetColumns('categories', ['id', 'parent_id', 'status', 'sort_order', 'created_at', 'updated_at', 'deleted_at']);
+        $this->validateTargetColumns('category_translations', ['category_id', 'locale', 'name', 'slug', 'description', 'seo_title', 'meta_description']);
+    }
+
+    /**
+     * @param array<int, string> $columns
+     */
+    private function validateSourceColumns(string $table, array $columns): void
+    {
+        $schema = $this->sourceDB()->getSchemaBuilder();
+
+        foreach ($columns as $column) {
+            if (!$schema->hasColumn($table, $column)) {
+                throw new \RuntimeException("Source column {$table}.{$column} does not exist on connection {$this->source}.");
+            }
+        }
+    }
+
+    /**
+     * @param array<int, string> $columns
+     */
+    private function validateTargetColumns(string $table, array $columns): void
+    {
+        $schema = $this->targetDB()->getSchemaBuilder();
+        $connection = $this->target ?? config('database.default');
+
+        foreach ($columns as $column) {
+            if (!$schema->hasColumn($table, $column)) {
+                throw new \RuntimeException("Target column {$table}.{$column} does not exist on connection {$connection}.");
             }
         }
     }
@@ -187,6 +261,12 @@ class JtlBlogImportService
 
     private function truncateTarget(): void
     {
+        if ($this->dryRun) {
+            $this->warn('Dry run enabled; target blog tables will not be truncated.');
+
+            return;
+        }
+
         $this->warn('Truncating target blog tables.');
         $db = $this->targetDB();
         $db->statement('SET FOREIGN_KEY_CHECKS=0');
@@ -282,6 +362,7 @@ class JtlBlogImportService
     private function importCategoryTranslations(): void
     {
         $this->info('Importing category translations...');
+        $imported = 0;
 
         $this->sourceDB()->table('tnewskategoriesprache as cts')
             ->leftJoin('tseo as seo', function ($join): void {
@@ -291,7 +372,7 @@ class JtlBlogImportService
             })
             ->select('cts.*', 'seo.cSeo')
             ->orderBy('cts.id')
-            ->chunk($this->chunk, function ($rows): void {
+            ->chunk($this->chunk, function ($rows) use (&$imported): void {
                 foreach ($rows as $row) {
                     $categoryID = $this->categoryMap[(int)$row->kNewsKategorie] ?? null;
                     if ($categoryID === null) {
@@ -322,13 +403,19 @@ class JtlBlogImportService
                             $data
                         );
                     }
+
+                    $imported++;
                 }
             });
+
+        $this->info("Imported category translations: {$imported}.");
     }
 
     private function importPosts(): void
     {
-        $this->info('Importing posts...');
+        $this->info('Importing posts and post translations...');
+        $imported = 0;
+        $translationsImported = 0;
 
         $this->sourceDB()->table('tnews as n')
             ->leftJoin('tcontentauthor as ca', function ($join): void {
@@ -337,7 +424,13 @@ class JtlBlogImportService
             ->leftJoin('tadminlogin as a', 'a.kAdminlogin', '=', 'ca.kAdminlogin')
             ->select('n.*', 'a.cMail as author_email', 'a.cName as author_name')
             ->orderBy('n.kNews')
-            ->chunk($this->chunk, function ($posts): void {
+            ->chunk($this->chunk, function ($posts) use (&$imported, &$translationsImported): void {
+                $translationsByPost = $this->postTranslationsForSourceIDs(
+                    $posts->pluck('kNews')
+                        ->map(static fn (mixed $sourceID): int => (int) $sourceID)
+                        ->all()
+                );
+
                 foreach ($posts as $post) {
                     $sourceID = (int)$post->kNews;
                     $targetID = $this->preserveIDs ? $sourceID : null;
@@ -360,77 +453,192 @@ class JtlBlogImportService
                     ];
 
                     if ($this->dryRun) {
-                        $this->postMap[$sourceID] = $targetID ?? $sourceID;
-                        continue;
-                    }
-
-                    if ($targetID !== null) {
+                        $targetID = $targetID ?? $sourceID;
+                    } elseif ($targetID !== null) {
                         $this->targetDB()->table('posts')->updateOrInsert(['id' => $targetID], $data);
                     } else {
                         $targetID = $this->targetDB()->table('posts')->insertGetId($data);
                     }
 
                     $this->postMap[$sourceID] = (int)$targetID;
+                    $imported++;
 
-                    if (!empty($post->cPreviewImage)) {
-                        $this->copyMedia($post->cPreviewImage, 'preview', $this->postModel, (int)$targetID);
+                    foreach ($translationsByPost[$sourceID] ?? [] as $translation) {
+                        if ($this->importPostTranslation((int)$targetID, $translation)) {
+                            $translationsImported++;
+                        }
                     }
                 }
             });
+
+        $this->info("Imported posts: {$imported}; post translations: {$translationsImported}.");
+
+        if (!$this->dryRun && $imported > 0 && $translationsImported === 0) {
+            throw new \RuntimeException('No post translations were imported. Check tnewssprache.kNews values against imported tnews.kNews values.');
+        }
     }
 
-    private function importPostTranslations(): void
+    private function importPostPreviewMedia(): void
     {
-        $this->info('Importing post translations...');
+        $this->info('Importing post preview media...');
+        $imported = 0;
+        $missing = 0;
+        $failed = 0;
 
-        $this->sourceDB()->table('tnewssprache as nts')
+        $this->sourceDB()->table('tnews')
+            ->select(['kNews', 'cPreviewImage'])
+            ->where('cPreviewImage', '<>', '')
+            ->orderBy('kNews')
+            ->chunk($this->chunk, function ($posts) use (&$imported, &$missing, &$failed): void {
+                foreach ($posts as $post) {
+                    $sourceID = (int) $post->kNews;
+                    $targetID = $this->postMap[$sourceID] ?? null;
+
+                    if ($targetID === null) {
+                        continue;
+                    }
+
+                    $result = $this->importPostPreviewMediaForPost($sourceID, $targetID, $post->cPreviewImage ?? null);
+
+                    if ($result === 'imported') {
+                        $imported++;
+                    } elseif ($result === 'missing') {
+                        $missing++;
+                    } elseif ($result === 'failed') {
+                        $failed++;
+                    }
+                }
+            });
+
+        $this->info("Imported post preview media: {$imported}; missing: {$missing}; failed: {$failed}.");
+    }
+
+    private function importPostPreviewMediaForPost(int $sourceID, int $targetID, ?string $jtlPreviewPath): string
+    {
+        if ($this->dryRun || $this->sourceRoot === '') {
+            return 'skipped';
+        }
+
+        $jtlPreviewPath = trim((string) $jtlPreviewPath);
+        if ($jtlPreviewPath === '') {
+            return 'skipped';
+        }
+
+        $sourcePath = $this->resolveSourcePath($jtlPreviewPath);
+        if ($sourcePath === null || !File::isFile($sourcePath)) {
+            $this->warn("Missing preview image for JTL post {$sourceID}: {$jtlPreviewPath}");
+
+            return 'missing';
+        }
+
+        $post = Post::query()->find($targetID);
+        if ($post === null) {
+            $this->warn("Skipping preview image for JTL post {$sourceID}; missing target post {$targetID}.");
+            return 'missing';
+        }
+
+        $user = User::query()->find($this->defaultUserID);
+        $file = new UploadedFile(
+            $sourcePath,
+            basename($sourcePath),
+            File::mimeType($sourcePath) ?: null,
+            null,
+            true
+        );
+
+        try {
+            $media = $this->mediaService->store($file, $user, [
+                'collection' => 'preview',
+            ]);
+
+            $media = $this->mediaService->attach($media, $post, 'preview');
+        } catch (\Throwable $exception) {
+            $this->warn("Failed preview image for JTL post {$sourceID}: {$exception->getMessage()}");
+
+            return 'failed';
+        }
+
+        if ($this->targetDB()->getSchemaBuilder()->hasTable('post_media')) {
+            $this->targetDB()->table('post_media')->updateOrInsert(
+                [
+                    'post_id' => $targetID,
+                    'media_id' => $media->getKey(),
+                    'collection' => 'preview',
+                ],
+                [
+                    'locale' => null,
+                    'purpose' => 'preview_image',
+                    'sort_order' => (int) $media->sort_order,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]
+            );
+        }
+
+        return 'imported';
+    }
+
+    /**
+     * @param array<int, int> $sourceIDs
+     * @return array<int, array<int, object>>
+     */
+    private function postTranslationsForSourceIDs(array $sourceIDs): array
+    {
+        $sourceIDs = array_values(array_unique(array_filter($sourceIDs)));
+
+        if ($sourceIDs === []) {
+            return [];
+        }
+
+        return $this->sourceDB()->table('tnewssprache as nts')
             ->leftJoin('tseo as seo', function ($join): void {
                 $join->on('seo.kKey', '=', 'nts.kNews')
                     ->on('seo.kSprache', '=', 'nts.languageID')
                     ->where('seo.cKey', '=', 'kNews');
             })
             ->select('nts.*', 'seo.cSeo')
+            ->whereIn('nts.kNews', $sourceIDs)
             ->orderBy('nts.id')
-            ->chunk($this->chunk, function ($rows): void {
-                foreach ($rows as $row) {
-                    $postID = $this->postMap[(int)$row->kNews] ?? null;
-                    if ($postID === null) {
-                        $this->warn("Skipping post translation for missing post {$row->kNews}.");
-                        continue;
-                    }
+            ->get()
+            ->groupBy(static fn (object $row): int => (int) $row->kNews)
+            ->map(static fn ($rows): array => $rows->all())
+            ->all();
+    }
 
-                    $locale = $this->locale((int)$row->languageID);
-                    $title = $this->trimTo($row->title ?: 'JTL Blog ' . $postID, 191);
-                    $slug = $this->uniqueSlug('post_translations', 'post_id', $postID, $locale, $row->cSeo ?: $title);
-                    $content = $this->rewriteContentImages((string)($row->content ?? ''));
-                    $excerpt = $this->rewriteContentImages((string)($row->preview ?? ''));
+    private function importPostTranslation(int $postID, object $row): bool
+    {
+        $locale = $this->locale((int)$row->languageID);
+        $title = $this->trimTo($row->title ?: 'JTL Blog ' . $postID, 191);
+        $slug = $this->uniqueSlug('post_translations', 'post_id', $postID, $locale, $row->cSeo ?: $title);
+        $content = $this->rewriteContentImages((string)($row->content ?? ''));
+        $excerpt = $this->rewriteContentImages((string)($row->preview ?? ''));
 
-                    $data = [
-                        'post_id' => $postID,
-                        'locale' => $locale,
-                        'title' => $title,
-                        'slug' => $slug,
-                        'excerpt' => $excerpt !== '' ? $excerpt : null,
-                        'content' => $content !== '' ? $content : null,
-                        'seo_title' => $row->metaTitle ?: $title,
-                        'meta_description' => $row->metaDescription ?: null,
-                        'og_title' => $row->metaTitle ?: $title,
-                        'og_description' => $row->metaDescription ?: null,
-                        'canonical_url' => null,
-                        'preview_image_alt' => $title,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                        'deleted_at' => null,
-                    ];
+        $data = [
+            'post_id' => $postID,
+            'locale' => $locale,
+            'title' => $title,
+            'slug' => $slug,
+            'excerpt' => $excerpt !== '' ? $excerpt : null,
+            'content' => $content !== '' ? $content : null,
+            'seo_title' => $row->metaTitle ?: $title,
+            'meta_description' => $row->metaDescription ?: null,
+            'og_title' => $row->metaTitle ?: $title,
+            'og_description' => $row->metaDescription ?: null,
+            'canonical_url' => null,
+            'preview_image_alt' => $title,
+            'created_at' => now(),
+            'updated_at' => now(),
+            'deleted_at' => null,
+        ];
 
-                    if (!$this->dryRun) {
-                        $this->targetDB()->table('post_translations')->updateOrInsert(
-                            ['post_id' => $postID, 'locale' => $locale],
-                            $data
-                        );
-                    }
-                }
-            });
+        if (!$this->dryRun) {
+            $this->targetDB()->table('post_translations')->updateOrInsert(
+                ['post_id' => $postID, 'locale' => $locale],
+                $data
+            );
+        }
+
+        return true;
     }
 
     private function importPostCategories(): void
@@ -465,11 +673,25 @@ class JtlBlogImportService
 
         $this->info('Importing comments...');
 
-        $this->sourceDB()->table('tnewskommentar as c')
-            ->leftJoin('tkunde as k', 'k.kKunde', '=', 'c.kKunde')
-            ->select('c.*', 'k.cMail as customer_email', 'k.cVorname', 'k.cNachname')
+        if ($this->sourceDB()->table('tnewskommentar')->count() === 0) {
+            $this->info('No JTL comments found.');
+
+            return;
+        }
+
+        $query = $this->sourceDB()->table('tnewskommentar as c')
             ->orderBy('c.parentCommentID')
-            ->orderBy('c.kNewsKommentar')
+            ->orderBy('c.kNewsKommentar');
+
+        if ($this->sourceDB()->getSchemaBuilder()->hasTable('tkunde')) {
+            $query
+                ->leftJoin('tkunde as k', 'k.kKunde', '=', 'c.kKunde')
+                ->select('c.*', 'k.cMail as customer_email', 'k.cVorname', 'k.cNachname');
+        } else {
+            $query->select('c.*');
+        }
+
+        $query
             ->chunk($this->chunk, function ($comments): void {
                 foreach ($comments as $comment) {
                     $sourceID = (int)$comment->kNewsKommentar;

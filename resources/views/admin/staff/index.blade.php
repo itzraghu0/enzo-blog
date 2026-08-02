@@ -146,9 +146,9 @@
         </div>
 
         <div class="kt-card-content p-6 lg:p-7.5">
-            <div data-kt-datatable="true" id="staff_table">
+            <div id="staff_table">
                 <div class="kt-scrollable-x-auto">
-                    <table class="kt-table table-fixed kt-table-border" data-kt-datatable-table="true">
+                    <table class="kt-table table-fixed kt-table-border">
                         <thead>
                             <tr>
                                 <th class="w-[320px]">

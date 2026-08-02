@@ -22,7 +22,7 @@ return new class extends Migration
             $table->text('caption')->nullable();
             $table->string('collection', 80)->default('default');
             $table->string('locale', 10)->nullable();
-            $table->string('mediable_type', 120)->nullable();
+            $table->string('mediable_type', 100)->nullable();
             $table->unsignedBigInteger('mediable_id')->nullable();
             $table->index(['mediable_type', 'mediable_id']);
             $table->unsignedInteger('sort_order')->default(0);

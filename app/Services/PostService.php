@@ -129,6 +129,7 @@ class PostService
                 'authors.name as author_name',
                 'preview_media.id as preview_media_id',
                 'preview_media.path as preview_image_path',
+                'preview_media.filename as preview_image_filename',
                 'preview_media.alt_text as media_alt_text',
             ])
             ->selectRaw('COALESCE(pt_locale.title, pt_default.title) as title')
@@ -180,6 +181,8 @@ class PostService
             $post->created_at = $post->created_at ? Carbon::parse($post->created_at) : null;
             $post->updated_at = $post->updated_at ? Carbon::parse($post->updated_at) : null;
             $post->preview_image_url = $post->preview_image_path ? asset($post->preview_image_path) : null;
+            $post->preview_image_sm_url = $this->mediaVariantUrl($post, 'sm');
+            $post->preview_image_md_url = $this->mediaVariantUrl($post, 'md');
             $post->preview_image_alt = $post->preview_image_alt ?: ($post->media_alt_text ?: $post->title);
 
             return $post;
@@ -399,5 +402,22 @@ class PostService
     {
         Cache::forget('blog.published_months.' . config('blog.default_locale', 'en'));
         Cache::forget('admin.dashboard.overview');
+    }
+
+    private function mediaVariantUrl(object $mediaProjection, string $variant): ?string
+    {
+        if (!array_key_exists($variant, config('blog.media_variants', []))) {
+            return null;
+        }
+
+        if (!$mediaProjection->preview_media_id || !$mediaProjection->preview_image_filename) {
+            return null;
+        }
+
+        $baseName = pathinfo((string) $mediaProjection->preview_image_filename, PATHINFO_FILENAME);
+        $directory = trim(config('blog.media_directory', 'media/blog'), '/');
+        $path = trim($directory.'/'.$mediaProjection->preview_media_id.'/'.$variant.'/'.$baseName.'.webp', '/');
+
+        return is_file(public_path($path)) ? asset($path) : null;
     }
 }

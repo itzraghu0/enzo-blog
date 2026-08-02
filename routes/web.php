@@ -10,8 +10,6 @@ use App\Http\Controllers\MemberController;
 use App\Http\Controllers\PostController;
 use App\Http\Controllers\SiteSettingController;
 use App\Http\Controllers\StaffUserController;
-use App\Services\JtlBlogImportService;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [BlogController::class, 'index'])->name('blog.index');
@@ -59,19 +57,6 @@ Route::prefix('admin')
     ->group(function () {
         Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
         Route::post('change-password', [AuthController::class, 'changePassword'])->name('change-password');
-        Route::get('temp/import-jtl-blogs', function (Request $request, JtlBlogImportService $importer) {
-            return response()->json($importer->import([
-                'database' => 'cupssy',
-                'username' => 'root',
-                'password' => 'root',
-                'source_root' => (string) $request->query('source_root', ''),
-                'chunk' => (int) $request->integer('chunk', 500),
-                'preserve_ids' => $request->boolean('preserve_ids'),
-                'media_root' => 'media/blog/jtl',
-                'public_prefix' => '/',
-            ]));
-        })->name('temp.import-jtl-blogs');
-
         Route::redirect('posts', 'blog/posts', 301);
         Route::redirect('posts/create', 'blog/posts/create', 301);
         Route::redirect('categories', 'blog/categories', 301);
