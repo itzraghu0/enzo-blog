@@ -3,7 +3,8 @@
 
 @section('breadcrumb')
     <div class="mb-5 lg:mb-7.5">
-        <div class="w-full kt-container-fluid px-6 lg:px-8 max-w-[2200px] flex items-center justify-between flex-wrap gap-5 mx-auto">
+        <div
+            class="w-full kt-container-fluid px-6 lg:px-8 max-w-[2200px] flex items-center justify-between flex-wrap gap-5 mx-auto">
             <div class="flex flex-col justify-center items-start flex-wrap gap-1 lg:gap-2">
                 <h1 class="font-medium text-lg text-mono">{{ __('Members') }}</h1>
                 <div class="flex items-center gap-1 text-sm font-normal">
@@ -40,72 +41,74 @@
         </div>
     </div>
 
-    @php
-        $memberTabs = [
-            '' => __('All'),
-            '1' => __('Verified'),
-            '0' => __('Pending'),
-        ];
-    @endphp
+    <div class="kt-card mb-7.5">
+        <div class="kt-card-header flex-wrap gap-3 py-5">
+            <div>
+                <h3 class="kt-card-title">{{ __('Filter members') }}</h3>
+                <div class="text-sm text-secondary-foreground">
+                    {{ __('Search members and control Laravel pagination.') }}
+                </div>
+            </div>
+        </div>
 
-    <div class="kt-card kt-card-grid min-w-full overflow-hidden">
-        <div class="kt-card-content border-b border-border p-6 lg:p-7.5">
-            <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-                <div class="max-w-2xl">
-                    <div class="text-xs font-semibold uppercase tracking-[0.24em] text-secondary-foreground">
-                        {{ __('Account teams') }}
+        <div class="kt-card-content border-b border-border p-5">
+            <form id="members-filter-form" action="{{ route('admin.members.index') }}" method="GET">
+                <div class="grid grid-cols-3 gap-2 xl:items-end">
+                    <div class="kt-form-item xl:col-span-7">
+                        <label class="kt-form-label">{{ __('Search') }}</label>
+                        <div class="kt-form-control">
+                            <label class="kt-input w-full">
+                                <i class="ki-filled ki-magnifier"></i>
+                                <input name="search" placeholder="{{ __('Search members') }}" type="text"
+                                    value="{{ $filters['search'] ?? '' }}">
+                            </label>
+                        </div>
                     </div>
-                    <h3 class="mt-2 text-2xl font-semibold text-mono">
-                        {{ __('Members') }}
-                    </h3>
-                    <p class="mt-2 text-sm text-secondary-foreground">
-                        {{ __('Frontend users who signed up from the public blog.') }}
-                    </p>
-                </div>
-
-                <div class="flex flex-wrap items-center gap-3">
-                    <label class="kt-input min-w-[260px]">
-                        <i class="ki-filled ki-magnifier"></i>
-                        <input form="members-filter-form" name="search" placeholder="{{ __('Search members') }}" type="text" value="{{ $filters['search'] ?? '' }}">
-                    </label>
-                    <label class="kt-label whitespace-nowrap">
-                        {{ __('Verified only') }}
-                        <input form="members-filter-form" class="kt-switch kt-switch-sm" name="verified" type="checkbox" value="1" @checked((bool) ($filters['verified'] ?? false))>
-                    </label>
-                </div>
-            </div>
-
-            <div class="mt-6 flex flex-wrap items-center gap-2">
-                @foreach ($memberTabs as $value => $label)
-                    <a href="{{ route('admin.members.index', array_filter(['verified' => $value === '' ? null : $value])) }}"
-                        class="kt-btn kt-btn-sm {{ (string) ($filters['verified'] ?? '') === (string) $value ? 'kt-btn-primary' : 'kt-btn-outline' }}">
-                        {{ $label }}
-                    </a>
-                @endforeach
-            </div>
-
-            <form id="members-filter-form" action="{{ route('admin.members.index') }}" method="GET" class="mt-6">
-                <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-end">
-                    <div class="lg:col-span-3">
+                    <div class="kt-form-item xl:col-span-3">
+                        <label class="kt-form-label">{{ __('Verification') }}</label>
+                        <div class="kt-form-control">
+                            <select name="verified" class="kt-input w-full">
+                                <option value="">{{ __('All') }}</option>
+                                <option value="1" @selected(($filters['verified'] ?? null) === true)>{{ __('Verified') }}</option>
+                                <option value="0" @selected(($filters['verified'] ?? null) === false)>{{ __('Pending') }}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="kt-form-item xl:col-span-2">
                         <label class="kt-form-label">{{ __('Per page') }}</label>
-                        <select name="per_page" class="kt-input w-full">
-                            @foreach ($perPageOptions as $count)
-                                <option value="{{ $count }}" @selected((int) ($filters['per_page'] ?? 20) === $count)>
-                                    {{ $count }}
-                                </option>
-                            @endforeach
-                        </select>
+                        <div class="kt-form-control">
+                            <select name="per_page" class="kt-input w-full">
+                                @foreach ($perPageOptions as $count)
+                                    <option value="{{ $count }}" @selected((int) ($filters['per_page'] ?? 20) === $count)>
+                                        {{ $count }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
                     </div>
-                    <div class="lg:col-span-9 flex gap-2">
-                        <button type="submit" class="kt-btn kt-btn-primary w-full justify-center">
-                            <i class="ki-filled ki-magnifier me-1"></i>{{ __('Search') }}
-                        </button>
-                        <a href="{{ route('admin.members.index') }}" class="kt-btn kt-btn-outline w-full justify-center">
-                            {{ __('Reset') }}
-                        </a>
-                    </div>
+                </div>
+
+                <div class="mt-4 grid grid-cols-3 gap-2">
+                    <button type="submit" class="kt-btn kt-btn-primary justify-center">
+                        <i class="ki-filled ki-magnifier me-1"></i>{{ __('Search') }}
+                    </button>
+                    <a href="{{ route('admin.members.index') }}" class="kt-btn kt-btn-outline justify-center">
+                        {{ __('Reset') }}
+                    </a>
                 </div>
             </form>
+        </div>
+
+    </div>
+
+    <div class="kt-card kt-card-grid min-w-full overflow-hidden">
+        <div class="kt-card-header flex-wrap gap-3 py-5">
+            <div>
+                <h3 class="kt-card-title">{{ __('Members') }}</h3>
+                <div class="text-sm text-secondary-foreground">
+                    {{ __('Frontend users who signed up from the public blog.') }}
+                </div>
+            </div>
         </div>
 
         <div class="kt-card-content p-6 lg:p-7.5">
@@ -114,9 +117,6 @@
                     <table class="kt-table table-fixed kt-table-border" data-kt-datatable-table="true">
                         <thead>
                             <tr>
-                                <th class="w-[60px] text-center">
-                                    <input class="kt-checkbox kt-checkbox-sm" type="checkbox">
-                                </th>
                                 <th class="w-[320px]">
                                     <span class="kt-table-col">
                                         <span class="kt-table-col-label">{{ __('Member') }}</span>
@@ -150,22 +150,23 @@
                                     $statusClass = $member->email_verified_at ? 'kt-badge-success' : 'kt-badge-warning';
                                 @endphp
                                 <tr>
-                                    <td class="text-center">
-                                        <input class="kt-checkbox kt-checkbox-sm" type="checkbox" value="{{ $member->id }}">
-                                    </td>
                                     <td>
                                         <div class="flex items-center gap-3">
-                                            <div class="size-12 rounded-full bg-gradient-to-br from-slate-900 to-sky-600 text-white flex items-center justify-center font-semibold text-base">
+                                            <div
+                                                class="size-12 rounded-full bg-gradient-to-br from-slate-900 to-sky-600 text-white flex items-center justify-center font-semibold text-base">
                                                 {{ $initial }}
                                             </div>
                                             <div class="flex flex-col gap-1.5">
-                                                <span class="leading-none font-medium text-sm text-mono">{{ $member->name }}</span>
-                                                <span class="text-sm text-secondary-foreground font-normal">#{{ $member->id }}</span>
+                                                <span
+                                                    class="leading-none font-medium text-sm text-mono">{{ $member->name }}</span>
+                                                <span
+                                                    class="text-sm text-secondary-foreground font-normal">#{{ $member->id }}</span>
                                             </div>
                                         </div>
                                     </td>
                                     <td class="text-foreground font-normal">
-                                        <a href="mailto:{{ $member->email }}" class="hover:text-primary break-all">{{ $member->email }}</a>
+                                        <a href="mailto:{{ $member->email }}"
+                                            class="hover:text-primary break-all">{{ $member->email }}</a>
                                     </td>
                                     <td>
                                         <span class="kt-badge {{ $statusClass }}">
@@ -178,7 +179,8 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="5" class="text-center text-secondary-foreground py-10">{{ __('No items found') }}</td>
+                                    <td colspan="4" class="text-center text-secondary-foreground py-10">
+                                        {{ __('No items found') }}</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -187,7 +189,11 @@
             </div>
         </div>
 
-        <div class="p-5">
+        <div class="kt-card-footer flex flex-col gap-3 p-5 md:flex-row md:items-center md:justify-between">
+            <div class="text-sm text-secondary-foreground">
+                {{ __('Showing') }} {{ $members->firstItem() ?? 0 }}-{{ $members->lastItem() ?? 0 }} {{ __('of') }}
+                {{ $members->total() }}
+            </div>
             {{ $members->links() }}
         </div>
     </div>

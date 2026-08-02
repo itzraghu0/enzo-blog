@@ -57,6 +57,10 @@ class UpsertPostRequest extends FormRequest
             if (! $this->input("translations.$defaultLocale.title")) {
                 $validator->errors()->add("translations.$defaultLocale.title", __('validation.required', ['attribute' => 'title']));
             }
+
+            if (! $this->input("translations.$defaultLocale.content")) {
+                $validator->errors()->add("translations.$defaultLocale.content", __('validation.required', ['attribute' => 'content']));
+            }
         });
     }
 }

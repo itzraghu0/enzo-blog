@@ -34,6 +34,8 @@ class MemberService
             ->when($verified !== null, function ($query) use ($verified): void {
                 if ((bool) $verified) {
                     $query->whereNotNull('email_verified_at');
+                } else {
+                    $query->whereNull('email_verified_at');
                 }
             })
             ->latest('created_at')

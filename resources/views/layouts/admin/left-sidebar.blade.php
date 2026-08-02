@@ -32,25 +32,25 @@
         <div class="menu">
             <ul class="list">
                 <li class="header">{{ __('BLOG NAVIGATION') }}</li>
-                <li class="{{ Helper::setActive('admin/posts') }}">
+                <li class="{{ Helper::setActive('admin/blog/posts') }}">
                     <a href="{{ route('admin.posts.index') }}">
                         <i class="material-icons">article</i>
                         <span>{{ __('posts') }}</span>
                     </a>
                 </li>
-                <li class="{{ Helper::setActive('admin/posts/create') }}">
+                <li class="{{ Helper::setActive('admin/blog/posts/create') }}">
                     <a href="{{ route('admin.posts.create') }}">
                         <i class="material-icons">add</i>
                         <span>{{ __('add_new') }}</span>
                     </a>
                 </li>
-                <li class="{{ Helper::setActive('admin/categories') }}">
+                <li class="{{ Helper::setActive('admin/blog/categories') }}">
                     <a href="{{ route('admin.categories.index') }}">
                         <i class="material-icons">category</i>
                         <span>{{ __('categories') }}</span>
                     </a>
                 </li>
-                <li class="{{ Helper::setActive('admin/media') }}">
+                <li class="{{ Helper::setActive('admin/blog/media') }}">
                     <a href="{{ route('admin.media.index') }}">
                         <i class="material-icons">perm_media</i>
                         <span>{{ __('media') }}</span>

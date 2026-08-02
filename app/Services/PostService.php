@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Category;
 use App\Models\Media;
 use App\Models\Post;
+use App\Models\PostMedia;
 use App\Models\PostTranslation;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -92,50 +93,99 @@ class PostService
         $sort = $filters['sort'] ?? 'recent_desc';
         $month = $filters['month'] ?? null;
         $categoryId = $filters['category_id'] ?? null;
+        $search = trim((string) ($filters['search'] ?? ''));
 
-        $query = Post::query()
-            ->select(['posts.id', 'posts.user_id', 'posts.status', 'posts.is_featured', 'posts.published_at', 'posts.created_at', 'posts.updated_at'])
-            ->with([
-                'translations' => function ($translationQuery) use ($locale, $defaultLocale): void {
-                    $translationQuery->select(['id', 'post_id', 'locale', 'title', 'slug', 'excerpt', 'preview_image_alt'])
-                        ->whereIn('locale', [$locale, $defaultLocale]);
-                },
-                'categories.translations' => function ($categoryTranslationQuery) use ($locale, $defaultLocale): void {
-                    $categoryTranslationQuery->select(['id', 'category_id', 'locale', 'name', 'slug'])
-                        ->whereIn('locale', [$locale, $defaultLocale]);
-                },
-                'previewMedia:id,user_id,disk,path,filename,original_name,mime_type,size,alt_text,title,caption,collection,locale,mediable_type,mediable_id,sort_order,created_at,updated_at',
-                'author:id,name',
+        $previewMediaSubquery = DB::table('media')
+            ->selectRaw('MAX(id) as id, mediable_id')
+            ->where('mediable_type', Post::class)
+            ->where('collection', 'preview')
+            ->whereNull('deleted_at')
+            ->groupBy('mediable_id');
+
+        $query = DB::table('posts')
+            ->leftJoin('post_translations as pt_locale', function ($join) use ($locale): void {
+                $join->on('pt_locale.post_id', '=', 'posts.id')
+                    ->where('pt_locale.locale', '=', $locale)
+                    ->whereNull('pt_locale.deleted_at');
+            })
+            ->leftJoin('post_translations as pt_default', function ($join) use ($defaultLocale): void {
+                $join->on('pt_default.post_id', '=', 'posts.id')
+                    ->where('pt_default.locale', '=', $defaultLocale)
+                    ->whereNull('pt_default.deleted_at');
+            })
+            ->leftJoinSub($previewMediaSubquery, 'preview_pick', function ($join): void {
+                $join->on('preview_pick.mediable_id', '=', 'posts.id');
+            })
+            ->leftJoin('media as preview_media', 'preview_media.id', '=', 'preview_pick.id')
+            ->leftJoin('users as authors', 'authors.id', '=', 'posts.user_id')
+            ->select([
+                'posts.id',
+                'posts.user_id',
+                'posts.status',
+                'posts.is_featured',
+                'posts.published_at',
+                'posts.created_at',
+                'posts.updated_at',
+                'authors.name as author_name',
+                'preview_media.id as preview_media_id',
+                'preview_media.path as preview_image_path',
+                'preview_media.alt_text as media_alt_text',
             ])
-            ->where('status', 'published')
+            ->selectRaw('COALESCE(pt_locale.title, pt_default.title) as title')
+            ->selectRaw('COALESCE(pt_locale.slug, pt_default.slug) as slug')
+            ->selectRaw('COALESCE(pt_locale.excerpt, pt_default.excerpt) as excerpt')
+            ->selectRaw('COALESCE(pt_locale.preview_image_alt, pt_default.preview_image_alt, preview_media.alt_text) as preview_image_alt')
+            ->selectRaw('(select count(*) from comments where comments.post_id = posts.id) as comments_count')
+            ->where('posts.status', 'published')
+            ->whereNull('posts.deleted_at')
+            ->whereNotNull('posts.published_at')
             ->when($month, function ($query) use ($month): void {
                 $date = Carbon::createFromFormat('Y-m', $month);
 
-                $query->whereBetween('published_at', [
+                $query->whereBetween('posts.published_at', [
                     $date->copy()->startOfMonth(),
                     $date->copy()->endOfMonth(),
                 ]);
             })
             ->when($categoryId, function ($query) use ($categoryId): void {
-                $query->whereHas('categories', function ($categoryQuery) use ($categoryId): void {
-                    $categoryQuery->whereKey($categoryId);
+                $query->whereExists(function ($categoryQuery) use ($categoryId): void {
+                    $categoryQuery->selectRaw('1')
+                        ->from('post_category')
+                        ->whereColumn('post_category.post_id', 'posts.id')
+                        ->where('post_category.category_id', $categoryId);
+                });
+            })
+            ->when($search !== '', function ($query) use ($search): void {
+                $query->where(function ($nestedQuery) use ($search): void {
+                    $nestedQuery->where('pt_locale.title', 'like', "%{$search}%")
+                        ->orWhere('pt_locale.excerpt', 'like', "%{$search}%")
+                        ->orWhere('pt_locale.content', 'like', "%{$search}%")
+                        ->orWhere('pt_default.title', 'like', "%{$search}%")
+                        ->orWhere('pt_default.excerpt', 'like', "%{$search}%")
+                        ->orWhere('pt_default.content', 'like', "%{$search}%");
                 });
             });
 
         if (in_array($sort, ['title_asc', 'title_desc'], true)) {
             $direction = $sort === 'title_asc' ? 'asc' : 'desc';
 
-            $query->leftJoin('post_translations as pt_sort', function ($join) use ($locale): void {
-                $join->on('pt_sort.post_id', '=', 'posts.id')
-                    ->where('pt_sort.locale', '=', $locale);
-            })
-                ->select('posts.id', 'posts.user_id', 'posts.status', 'posts.is_featured', 'posts.published_at', 'posts.created_at', 'posts.updated_at')
-                ->orderBy('pt_sort.title', $direction);
+            $query->orderByRaw('COALESCE(pt_locale.title, pt_default.title) ' . $direction);
         } else {
-            $query->orderBy('published_at', $sort === 'recent_asc' ? 'asc' : 'desc');
+            $query->orderBy('posts.published_at', $sort === 'recent_asc' ? 'asc' : 'desc');
         }
 
-        return $query->paginate($perPage)->withQueryString();
+        $posts = $query->paginate($perPage)->withQueryString();
+        $posts->getCollection()->transform(function (object $post): object {
+            $post->published_at = $post->published_at ? Carbon::parse($post->published_at) : null;
+            $post->created_at = $post->created_at ? Carbon::parse($post->created_at) : null;
+            $post->updated_at = $post->updated_at ? Carbon::parse($post->updated_at) : null;
+            $post->preview_image_url = $post->preview_image_path ? asset($post->preview_image_path) : null;
+            $post->preview_image_alt = $post->preview_image_alt ?: ($post->media_alt_text ?: $post->title);
+
+            return $post;
+        });
+
+        return $posts;
     }
 
     public function resolvePublishedBySlug(string $slug, ?string $locale = null): ?Post
@@ -169,7 +219,8 @@ class PostService
                     $categoryTranslationQuery->select(['id', 'category_id', 'locale', 'name', 'slug'])
                         ->whereIn('locale', [$locale, $defaultLocale]);
                 },
-                'previewMedia:id,user_id,disk,path,filename,original_name,mime_type,size,alt_text,title,caption,collection,locale,mediable_type,mediable_id,sort_order,created_at,updated_at',
+                'previewMedia:id,user_id,disk,path,filename,original_name,mime_type,size,alt_text,title,caption,seo_keywords,hashtags,relevance_notes,aeo_summary,aeo_questions,geo_summary,geo_entities,geo_prompts,geo_context,collection,locale,mediable_type,mediable_id,sort_order,created_at,updated_at',
+                'postMedia.media:id,user_id,disk,path,filename,original_name,mime_type,size,alt_text,title,caption,seo_keywords,hashtags,relevance_notes,aeo_summary,aeo_questions,geo_summary,geo_entities,geo_prompts,geo_context,collection,locale,created_at,updated_at',
                 'author:id,name',
             ])
             ->where('status', 'published')
@@ -180,11 +231,17 @@ class PostService
     {
         if ($file === null) {
             if ($selectedMedia === null) {
+                if ($post->previewMedia !== null) {
+                    $this->recordMediaAttachment($post, $post->previewMedia, 'preview', $data['locale'] ?? null, 'preview_image');
+                }
+
                 return $post->previewMedia;
             }
 
             $existing = $post->previewMedia;
             if ($existing !== null && $existing->is($selectedMedia)) {
+                $this->recordMediaAttachment($post, $selectedMedia, 'preview', $data['locale'] ?? null, 'preview_image');
+
                 return $existing;
             }
 
@@ -192,9 +249,13 @@ class PostService
                 $this->mediaService->delete($existing);
             }
 
-            return $this->mediaService->duplicateForModel($selectedMedia, $post, 'preview', $data['locale'] ?? null, [
+            $media = $this->mediaService->duplicateForModel($selectedMedia, $post, 'preview', $data['locale'] ?? null, [
                 'alt_text' => $this->blankToNull($data['alt_text'] ?? $selectedMedia->alt_text),
             ]);
+
+            $this->recordMediaAttachment($post, $media, 'preview', $data['locale'] ?? null, 'preview_image');
+
+            return $media;
         }
 
         $existing = $post->previewMedia;
@@ -206,7 +267,10 @@ class PostService
             'collection' => 'preview',
         ]));
 
-        return $this->mediaService->attach($media, $post, 'preview', $data['locale'] ?? null);
+        $media = $this->mediaService->attach($media, $post, 'preview', $data['locale'] ?? null);
+        $this->recordMediaAttachment($post, $media, 'preview', $data['locale'] ?? null, 'preview_image');
+
+        return $media;
     }
 
     private function blankToNull(mixed $value): ?string
@@ -225,7 +289,26 @@ class PostService
 
     public function attachMedia(Post $post, Media $media, string $collection = 'preview', ?string $locale = null): Media
     {
-        return app(MediaService::class)->attach($media, $post, $collection, $locale);
+        $media = app(MediaService::class)->attach($media, $post, $collection, $locale);
+        $this->recordMediaAttachment($post, $media, $collection, $locale, $collection);
+
+        return $media;
+    }
+
+    private function recordMediaAttachment(Post $post, Media $media, string $collection, ?string $locale = null, ?string $purpose = null): PostMedia
+    {
+        return PostMedia::updateOrCreate(
+            [
+                'post_id' => $post->getKey(),
+                'media_id' => $media->getKey(),
+                'collection' => $collection,
+            ],
+            [
+                'locale' => $locale,
+                'purpose' => $purpose,
+                'sort_order' => (int) ($media->sort_order ?? 0),
+            ],
+        );
     }
 
     public function publishedMonths(): Collection
@@ -243,8 +326,9 @@ class PostService
             return collect($cachedMonths);
         }
 
-        $months = Post::query()
+        $months = DB::table('posts')
             ->where('status', 'published')
+            ->whereNull('deleted_at')
             ->whereNotNull('published_at')
             ->selectRaw("DATE_FORMAT(published_at, '%Y-%m') as month")
             ->groupBy('month')

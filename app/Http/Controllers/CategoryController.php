@@ -20,6 +20,10 @@ class CategoryController extends Controller
     {
         $locale = $request->get('locale', config('blog.default_locale'));
         $search = trim((string) $request->get('search', ''));
+        $status = $request->get('status');
+        $perPageOptions = [10, 20, 50, 100];
+        $perPage = (int) $request->get('per_page', 20);
+        $perPage = in_array($perPage, $perPageOptions, true) ? $perPage : 20;
 
         $stats = [
             'total' => Category::query()->count(),
@@ -40,6 +44,7 @@ class CategoryController extends Controller
                 'children.translations' => function ($query): void {
                     $query->select(['id', 'category_id', 'locale', 'name', 'slug']);
                 },
+                'previewMedia:id,user_id,disk,path,filename,original_name,mime_type,size,alt_text,title,caption,collection,locale,mediable_type,mediable_id,sort_order,created_at,updated_at',
             ])
             ->when($search !== '', function ($query) use ($search, $locale): void {
                 $query->whereHas('translations', function ($translationQuery) use ($search, $locale): void {
@@ -47,14 +52,24 @@ class CategoryController extends Controller
                         ->where('name', 'like', "%{$search}%");
                 });
             })
+            ->when(in_array($status, ['active', 'inactive'], true), function ($query) use ($status): void {
+                $query->where('status', $status);
+            })
             ->latest()
-            ->paginate(10)
+            ->paginate($perPage)
             ->withQueryString();
 
         return view('admin.blog.categories.index', [
             'categories' => $categories,
             'locale' => $locale,
             'search' => $search,
+            'filters' => [
+                'locale' => $locale,
+                'search' => $search,
+                'status' => $status,
+                'per_page' => $perPage,
+            ],
+            'perPageOptions' => $perPageOptions,
             'stats' => $stats,
             'locales' => config('blog.supported_locales', [config('blog.default_locale', 'en')]),
         ]);
@@ -80,7 +95,7 @@ class CategoryController extends Controller
     public function edit(Category $category): View
     {
         return view('admin.blog.categories.edit', [
-            'category' => $category->load(['translations', 'parent.translations', 'children.translations']),
+            'category' => $category->load(['translations', 'parent.translations', 'children.translations', 'previewMedia']),
             'parents' => Category::query()
                 ->select(['id', 'parent_id', 'status', 'sort_order'])
                 ->with([

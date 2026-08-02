@@ -6,7 +6,7 @@
         ->implode('');
 @endphp
 
-<div id="comment-{{ $comment->id }}" class="editorial-card p-5 md:p-6">
+<div id="comment-{{ $comment->id }}" class="border-b border-[color:var(--border)] py-5 md:py-6">
     <div class="flex items-start gap-4">
         <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[color:var(--primary-soft)] text-sm font-bold text-[color:var(--primary)]">
             {{ $initials ?: 'G' }}

@@ -61,6 +61,18 @@ class Post extends Model
         return $this->morphMany(Media::class, 'mediable');
     }
 
+    public function postMedia(): HasMany
+    {
+        return $this->hasMany(PostMedia::class);
+    }
+
+    public function libraryMedia(): BelongsToMany
+    {
+        return $this->belongsToMany(Media::class, 'post_media')
+            ->withPivot(['collection', 'locale', 'purpose', 'sort_order'])
+            ->withTimestamps();
+    }
+
     public function previewMedia(): MorphOne
     {
         return $this->morphOne(Media::class, 'mediable')->where('collection', 'preview');

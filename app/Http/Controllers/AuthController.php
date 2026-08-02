@@ -156,16 +156,42 @@ class AuthController extends Controller
         return redirect()->route('login')->with('success', __('signout_success'));
     }
 
-    public function setLanguage($locale): RedirectResponse
+    public function setLanguage(Request $request, string $locale): RedirectResponse
     {
-        if (!in_array($locale, ['en', 'de'])) {
+        if (! in_array($locale, config('blog.supported_locales', ['de', 'en']), true)) {
             abort(400);
         }
 
         Session::put('locale', $locale);
         App::setLocale($locale);
 
-        return redirect()->back();
+        return redirect()->to($this->localizedPreviousUrl($request, $locale));
+    }
+
+    private function localizedPreviousUrl(Request $request, string $locale): string
+    {
+        $previousUrl = url()->previous();
+        $parts = parse_url($previousUrl);
+
+        if (! is_array($parts) || ($parts['host'] ?? null) !== $request->getHost()) {
+            return route('blog.index', ['locale' => $locale]);
+        }
+
+        parse_str($parts['query'] ?? '', $query);
+        $query['locale'] = $locale;
+
+        $url = $request->getSchemeAndHttpHost() . ($parts['path'] ?? '/');
+        $queryString = http_build_query($query);
+
+        if ($queryString !== '') {
+            $url .= '?' . $queryString;
+        }
+
+        if (! empty($parts['fragment'])) {
+            $url .= '#' . $parts['fragment'];
+        }
+
+        return $url;
     }
 
 

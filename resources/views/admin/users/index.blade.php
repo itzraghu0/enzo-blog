@@ -61,11 +61,15 @@
                 <h3 class="kt-card-title">{{ __('Registered users') }}</h3>
                 <div class="text-sm text-secondary-foreground">{{ __('Search by name or email and filter by role or verification state.') }}</div>
             </div>
-            <div class="flex items-center gap-6">
-                <label class="kt-input">
-                    <i class="ki-filled ki-magnifier"></i>
-                    <input form="users-filter-form" name="search" placeholder="{{ __('Search users') }}" type="text" value="{{ $filters['search'] ?? '' }}">
-                </label>
+            <div class="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
+                <div class="kt-form-item w-full sm:w-auto">
+                    <div class="kt-form-control">
+                        <label class="kt-input w-full min-w-0 sm:w-auto sm:min-w-[260px]">
+                            <i class="ki-filled ki-magnifier"></i>
+                            <input form="users-filter-form" name="search" placeholder="{{ __('Search users') }}" type="text" value="{{ $filters['search'] ?? '' }}">
+                        </label>
+                    </div>
+                </div>
                 <label class="kt-label whitespace-nowrap">
                     {{ __('Verified only') }}
                     <input form="users-filter-form" class="kt-switch kt-switch-sm" name="verified" type="checkbox" value="1" @checked((bool) ($filters['verified'] ?? false))>
@@ -76,28 +80,32 @@
         <div class="kt-card-content p-5">
             <form id="users-filter-form" action="{{ route('admin.users.index') }}" method="GET" class="mb-5">
                 <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-end">
-                    <div class="lg:col-span-3">
+                    <div class="kt-form-item lg:col-span-3">
                         <label class="kt-form-label">{{ __('Role') }}</label>
-                        <select name="role" class="kt-input w-full">
-                            <option value="">{{ __('All roles') }}</option>
-                            @foreach ($roleOptions as $value => $label)
-                                <option value="{{ $value }}" @selected((string) ($filters['role'] ?? '') === (string) $value)>
-                                    {{ $label }}
-                                </option>
-                            @endforeach
-                        </select>
+                        <div class="kt-form-control">
+                            <select name="role" class="kt-input w-full">
+                                <option value="">{{ __('All roles') }}</option>
+                                @foreach ($roleOptions as $value => $label)
+                                    <option value="{{ $value }}" @selected((string) ($filters['role'] ?? '') === (string) $value)>
+                                        {{ $label }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
                     </div>
-                    <div class="lg:col-span-3">
+                    <div class="kt-form-item lg:col-span-3">
                         <label class="kt-form-label">{{ __('Per page') }}</label>
-                        <select name="per_page" class="kt-input w-full">
-                            @foreach ($perPageOptions as $count)
-                                <option value="{{ $count }}" @selected((int) ($filters['per_page'] ?? 20) === $count)>
-                                    {{ $count }}
-                                </option>
-                            @endforeach
-                        </select>
+                        <div class="kt-form-control">
+                            <select name="per_page" class="kt-input w-full">
+                                @foreach ($perPageOptions as $count)
+                                    <option value="{{ $count }}" @selected((int) ($filters['per_page'] ?? 20) === $count)>
+                                        {{ $count }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
                     </div>
-                    <div class="lg:col-span-6 flex gap-2">
+                    <div class="lg:col-span-6 grid grid-cols-1 gap-2 sm:grid-cols-2 min-w-0">
                         <button type="submit" class="kt-btn kt-btn-primary w-full justify-center">
                             <i class="ki-filled ki-magnifier me-1"></i>{{ __('Search') }}
                         </button>

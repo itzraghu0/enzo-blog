@@ -56,7 +56,63 @@
     ];
 
     if ($post->previewMedia) {
-        $structuredData['@graph'][0]['image'] = [$post->previewMedia->url()];
+        $imageData = [
+            '@type' => 'ImageObject',
+            'url' => $post->previewMedia->url(),
+            'name' => $post->previewMedia->title ?? $post->previewMedia->original_name,
+            'caption' => $post->previewMedia->caption,
+            'description' => $post->previewMedia->geo_summary ?? $post->previewMedia->aeo_summary ?? $post->previewMedia->relevance_notes,
+            'keywords' => $post->previewMedia->seo_keywords,
+        ];
+
+        $optimizationProperties = array_filter([
+            $post->previewMedia->seo_keywords ? [
+                '@type' => 'PropertyValue',
+                'name' => 'SEO keywords',
+                'value' => $post->previewMedia->seo_keywords,
+            ] : null,
+            $post->previewMedia->hashtags ? [
+                '@type' => 'PropertyValue',
+                'name' => 'SEO hashtags',
+                'value' => $post->previewMedia->hashtags,
+            ] : null,
+            $post->previewMedia->aeo_summary ? [
+                '@type' => 'PropertyValue',
+                'name' => 'AEO summary',
+                'value' => $post->previewMedia->aeo_summary,
+            ] : null,
+            $post->previewMedia->aeo_questions ? [
+                '@type' => 'PropertyValue',
+                'name' => 'AEO questions',
+                'value' => implode(' | ', $post->previewMedia->aeo_questions),
+            ] : null,
+            $post->previewMedia->geo_summary ? [
+                '@type' => 'PropertyValue',
+                'name' => 'GEO summary',
+                'value' => $post->previewMedia->geo_summary,
+            ] : null,
+            $post->previewMedia->geo_entities ? [
+                '@type' => 'PropertyValue',
+                'name' => 'GEO entities',
+                'value' => $post->previewMedia->geo_entities,
+            ] : null,
+            $post->previewMedia->geo_prompts ? [
+                '@type' => 'PropertyValue',
+                'name' => 'GEO prompts',
+                'value' => $post->previewMedia->geo_prompts,
+            ] : null,
+            $post->previewMedia->geo_context ? [
+                '@type' => 'PropertyValue',
+                'name' => 'GEO context',
+                'value' => $post->previewMedia->geo_context,
+            ] : null,
+        ]);
+
+        if ($optimizationProperties !== []) {
+            $imageData['additionalProperty'] = array_values($optimizationProperties);
+        }
+
+        $structuredData['@graph'][0]['image'] = [array_filter($imageData)];
     }
 @endphp
 
@@ -65,9 +121,9 @@
 @endpush
 
 @section('content')
-    <article class="editorial-shell">
-        <div class="mx-auto max-w-[720px] space-y-8">
-            <header class="space-y-5">
+    <article class="editorial-shell news-page">
+        <div class="space-y-8">
+            <header class="space-y-5 border-b border-[color:var(--border)] pb-8">
                 <div class="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--muted)]">
                     @foreach ($post->categories->take(3) as $category)
                         @php $categoryTranslation = $category->translationFor($locale); @endphp
@@ -77,11 +133,11 @@
                     @endforeach
                 </div>
 
-                <h1 class="text-4xl font-extrabold tracking-[-0.04em] text-[color:var(--text)] md:text-5xl">
+                <h1 class="news-title max-w-5xl">
                     {{ $translation?->title ?? __('Untitled') }}
                 </h1>
 
-                <p class="max-w-2xl text-lg leading-8 text-[color:var(--muted)]">
+                <p class="max-w-4xl text-base leading-8 text-[color:var(--muted)]">
                     {{ $translation?->excerpt ?? '' }}
                 </p>
 
@@ -94,13 +150,13 @@
             </header>
 
             @if ($post->previewMedia)
-                <figure class="editorial-card overflow-hidden">
+                <figure class="overflow-hidden">
                     <img src="{{ $post->previewMedia->url() }}" alt="{{ $translation?->preview_image_alt ?? ($translation?->title ?? '') }}" class="h-auto w-full object-cover">
                 </figure>
             @endif
 
-            <section class="editorial-card p-6 md:p-8">
-                <div class="article-content">
+            <section>
+                <div class="article-content max-w-none">
                     {!! $translation?->content !!}
                 </div>
 
@@ -125,7 +181,7 @@
 
                 @auth
                     @if (auth()->user()->hasVerifiedEmail())
-                        <form action="{{ route('blog.comments.store', $postSlug) }}" method="POST" class="editorial-card p-6 md:p-8 space-y-4">
+                        <form action="{{ route('blog.comments.store', $postSlug) }}" method="POST" class="space-y-4 border-y border-[color:var(--border)] py-6">
                             @csrf
                             <div>
                                 <label class="mb-2 block text-sm font-semibold text-[color:var(--muted)]">{{ __('Add a comment') }}</label>
@@ -134,12 +190,12 @@
                             <button type="submit" class="editorial-button editorial-button-primary">{{ __('Post comment') }}</button>
                         </form>
                     @else
-                        <div class="editorial-card border-amber-200 bg-amber-50/90 p-6 text-sm text-amber-900">
+                        <div class="border-y border-amber-200 bg-amber-50/90 py-6 text-sm text-amber-900">
                             {{ __('Verify your email before commenting.') }}
                         </div>
                     @endif
                 @else
-                    <div class="editorial-card p-6 text-sm leading-7 text-[color:var(--muted)]">
+                    <div class="border-y border-[color:var(--border)] py-6 text-sm leading-7 text-[color:var(--muted)]">
                         <a href="{{ route('login') }}" class="font-bold text-[color:var(--text)]">{{ __('Sign in') }}</a>
                         {{ __('or') }}
                         <a href="{{ route('register') }}" class="font-bold text-[color:var(--text)]">{{ __('create an account') }}</a>
@@ -151,7 +207,7 @@
                     @forelse ($comments as $comment)
                         @include('frontend.blog.partials.comment', ['comment' => $comment, 'slug' => $postSlug])
                     @empty
-                        <div class="editorial-card p-6 text-[color:var(--muted)]">
+                        <div class="border-y border-[color:var(--border)] py-6 text-[color:var(--muted)]">
                             {{ __('No comments yet.') }}
                         </div>
                     @endforelse

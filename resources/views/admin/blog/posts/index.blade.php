@@ -18,7 +18,7 @@
                     <span class="text-secondary-foreground">{{ __('List') }}</span>
                 </div>
             </div>
-            <div class="flex items-center flex-wrap gap-1.5 lg:gap-3.5">
+            <div class="flex flex-wrap items-center gap-1.5 lg:gap-3.5">
                 <a href="{{ route('admin.posts.create') }}" class="kt-btn kt-btn-primary">
                     <i class="ki-filled ki-plus-circle text-lg me-1"></i>
                     {{ __('Add new') }}
@@ -56,65 +56,121 @@
         </div>
     </div>
 
-    <div class="kt-card kt-card-grid mb-7.5">
-        <div class="kt-card-header">
+    <div class="kt-card mb-7.5">
+        <div class="kt-card-header flex-wrap gap-3 py-5">
             <div>
                 <h3 class="kt-card-title">{{ __('Filter posts') }}</h3>
-                <div class="text-sm text-secondary-foreground">{{ __('Search by title and switch between locales.') }}</div>
+                <div class="text-sm text-secondary-foreground">{{ __('Search posts and control Laravel pagination.') }}</div>
             </div>
         </div>
-        <div class="kt-card-content p-5">
+
+        <div class="kt-card-content border-b border-border p-5">
             <form action="{{ route('admin.posts.index') }}" method="GET">
-                <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-end">
-                    <div class="lg:col-span-3">
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12 xl:items-end">
+                    <div class="kt-form-item xl:col-span-3">
                         <label class="kt-form-label">{{ __('Locale') }}</label>
-                        <select name="locale" class="kt-input w-full select2">
-                            @foreach ($locales ?? [] as $item)
-                                <option value="{{ $item }}" {{ ($locale ?? '') === $item ? 'selected' : '' }}>
-                                    {{ strtoupper($item) }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="lg:col-span-7">
-                        <label class="kt-form-label">{{ __('Keyword Search') }}</label>
-                        <div class="kt-input">
-                            <i class="ki-filled ki-magnifier"></i>
-                            <input type="text" name="search" value="{{ $search ?? '' }}" placeholder="{{ __('Search by title') }}" />
+                        <div class="kt-form-control">
+                            <select name="locale" class="kt-input w-full select2">
+                                @foreach ($locales ?? [] as $item)
+                                    <option value="{{ $item }}" @selected(($filters['locale'] ?? $locale ?? '') === $item)>
+                                        {{ strtoupper($item) }}
+                                    </option>
+                                @endforeach
+                            </select>
                         </div>
                     </div>
-                    <div class="lg:col-span-2 flex gap-2">
-                        <button type="submit" class="kt-btn kt-btn-primary w-full justify-center">
-                            <i class="ki-filled ki-magnifier me-1"></i>{{ __('Search') }}
-                        </button>
-                        <a href="{{ route('admin.posts.index') }}" class="kt-btn kt-btn-outline w-full justify-center">
-                            {{ __('Reset') }}
-                        </a>
+                    <div class="kt-form-item xl:col-span-4">
+                        <label class="kt-form-label">{{ __('Search') }}</label>
+                        <div class="kt-form-control">
+                            <label class="kt-input w-full">
+                                <i class="ki-filled ki-magnifier"></i>
+                                <input type="text" name="search" value="{{ $filters['search'] ?? $search ?? '' }}"
+                                    placeholder="{{ __('Search by title') }}">
+                            </label>
+                        </div>
                     </div>
+                    <div class="kt-form-item xl:col-span-3">
+                        <label class="kt-form-label">{{ __('Status') }}</label>
+                        <div class="kt-form-control">
+                            <select name="status" class="kt-input w-full">
+                                <option value="">{{ __('All') }}</option>
+                                <option value="published" @selected(($filters['status'] ?? null) === 'published')>{{ __('Published') }}</option>
+                                <option value="draft" @selected(($filters['status'] ?? null) === 'draft')>{{ __('Draft') }}</option>
+                                <option value="archived" @selected(($filters['status'] ?? null) === 'archived')>{{ __('Archived') }}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="kt-form-item xl:col-span-2">
+                        <label class="kt-form-label">{{ __('Per page') }}</label>
+                        <div class="kt-form-control">
+                            <select name="per_page" class="kt-input w-full">
+                                @foreach ($perPageOptions as $count)
+                                    <option value="{{ $count }}" @selected((int) ($filters['per_page'] ?? 20) === $count)>
+                                        {{ $count }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 sm:max-w-64">
+                    <button type="submit" class="kt-btn kt-btn-primary justify-center">
+                        <i class="ki-filled ki-magnifier me-1"></i>{{ __('Search') }}
+                    </button>
+                    <a href="{{ route('admin.posts.index') }}" class="kt-btn kt-btn-outline justify-center">
+                        {{ __('Reset') }}
+                    </a>
                 </div>
             </form>
         </div>
     </div>
 
-    <div class="kt-card kt-card-grid">
-        <div class="kt-card-header">
+    <div class="kt-card kt-card-grid min-w-full overflow-hidden">
+        <div class="kt-card-header flex-wrap gap-3 py-5">
             <div>
                 <h3 class="kt-card-title">{{ __('Post list') }}</h3>
                 <div class="text-sm text-secondary-foreground">{{ __('Manage translated titles, categories, and publishing status.') }}</div>
             </div>
         </div>
-        <div class="kt-card-table">
-            <div class="kt-table-wrapper kt-scrollable-x-auto">
-                <table class="kt-table">
+
+        <div class="kt-card-content p-6 lg:p-7.5">
+            <div data-kt-datatable="true" id="posts_table">
+                <div class="kt-scrollable-x-auto">
+                    <table class="kt-table table-fixed kt-table-border" data-kt-datatable-table="true">
                     <thead>
                         <tr>
-                            <th>#</th>
-                            <th>{{ __('Title') }}</th>
-                            <th>{{ __('Author') }}</th>
-                            <th>{{ __('Categories') }}</th>
-                            <th>{{ __('Status') }}</th>
-                            <th>{{ __('Published') }}</th>
-                            <th class="text-end">{{ __('Action') }}</th>
+                            <th class="w-[420px]">
+                                <span class="kt-table-col">
+                                    <span class="kt-table-col-label">{{ __('Post') }}</span>
+                                    <span class="kt-table-col-sort"></span>
+                                </span>
+                            </th>
+                            <th class="w-[200px]">
+                                <span class="kt-table-col">
+                                    <span class="kt-table-col-label">{{ __('Author') }}</span>
+                                    <span class="kt-table-col-sort"></span>
+                                </span>
+                            </th>
+                            <th class="w-[260px]">
+                                <span class="kt-table-col">
+                                    <span class="kt-table-col-label">{{ __('Categories') }}</span>
+                                    <span class="kt-table-col-sort"></span>
+                                </span>
+                            </th>
+                            <th class="w-[160px]">
+                                <span class="kt-table-col">
+                                    <span class="kt-table-col-label">{{ __('Status') }}</span>
+                                    <span class="kt-table-col-sort"></span>
+                                </span>
+                            </th>
+                            <th class="w-[190px]">
+                                <span class="kt-table-col">
+                                    <span class="kt-table-col-label">{{ __('Published') }}</span>
+                                    <span class="kt-table-col-sort"></span>
+                                </span>
+                            </th>
+                            <th class="w-[120px] text-end">{{ __('Action') }}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -129,16 +185,27 @@
                                 };
                             @endphp
                             <tr>
-                                <td class="font-medium text-secondary-foreground">{{ $post->id }}</td>
                                 <td>
-                                    <div class="font-medium text-mono">{{ $translation?->title ?? '-' }}</div>
-                                    @if ($translation?->excerpt)
-                                        <div class="text-sm text-secondary-foreground">
-                                            {{ \Illuminate\Support\Str::limit($translation->excerpt, 90) }}
+                                    <div class="flex items-center gap-3">
+                                        <div
+                                            class="size-12 rounded-xl bg-gradient-to-br from-slate-900 to-sky-600 text-white flex items-center justify-center font-semibold text-base">
+                                            {{ strtoupper(\Illuminate\Support\Str::substr($translation?->title ?? 'P', 0, 1)) }}
                                         </div>
-                                    @endif
+                                        <div class="flex flex-col gap-1.5 min-w-0">
+                                            <a href="{{ route('admin.posts.edit', $post) }}"
+                                                class="leading-none font-medium text-sm text-mono hover:text-primary truncate">
+                                                {{ $translation?->title ?? '-' }}
+                                            </a>
+                                            <span class="text-sm text-secondary-foreground font-normal">#{{ $post->id }}</span>
+                                            @if ($translation?->excerpt)
+                                                <span class="text-sm text-secondary-foreground truncate">
+                                                    {{ \Illuminate\Support\Str::limit($translation->excerpt, 90) }}
+                                                </span>
+                                            @endif
+                                        </div>
+                                    </div>
                                 </td>
-                                <td>{{ $post->author?->name ?? '-' }}</td>
+                                <td class="text-sm text-foreground font-normal">{{ $post->author?->name ?? '-' }}</td>
                                 <td>
                                     <div class="flex flex-wrap gap-1.5">
                                         @forelse ($post->categories as $category)
@@ -156,17 +223,21 @@
                                         {{ ucfirst($post->status) }}
                                     </span>
                                 </td>
-                                <td>{{ optional($post->published_at)->format('Y-m-d H:i') ?? '-' }}</td>
+                                <td class="text-sm text-foreground font-normal">
+                                    {{ optional($post->published_at)->format('d M, Y H:i') ?? '-' }}
+                                </td>
                                 <td>
-                                    <div class="flex justify-end gap-2">
-                                        <a href="{{ route('admin.posts.edit', $post) }}" class="kt-btn kt-btn-sm kt-btn-primary">
+                                    <div class="flex flex-wrap items-center justify-end gap-2">
+                                        <a href="{{ route('admin.posts.edit', $post) }}"
+                                            class="kt-btn kt-btn-icon kt-btn-bg-light kt-btn-active-light-primary kt-btn-sm">
                                             <i class="ki-filled ki-pencil"></i>
                                         </a>
                                         <form action="{{ route('admin.posts.destroy', $post) }}" method="POST"
-                                            onsubmit="return confirm('{{ __('Are you sure?') }}');">
+                                            data-confirm-delete>
                                             @csrf
                                             @method('DELETE')
-                                            <button type="submit" class="kt-btn kt-btn-sm kt-btn-danger">
+                                            <button type="submit"
+                                                class="kt-btn kt-btn-icon kt-btn-bg-light kt-btn-active-light-danger kt-btn-sm">
                                                 <i class="ki-filled ki-trash"></i>
                                             </button>
                                         </form>
@@ -182,10 +253,28 @@
                         @endforelse
                     </tbody>
                 </table>
+                </div>
             </div>
         </div>
-        <div class="p-5">
+
+        <div class="kt-card-footer flex flex-col gap-3 p-5 md:flex-row md:items-center md:justify-between">
+            <div class="text-sm text-secondary-foreground">
+                {{ __('Showing') }} {{ $posts->firstItem() ?? 0 }}-{{ $posts->lastItem() ?? 0 }} {{ __('of') }}
+                {{ $posts->total() }}
+            </div>
             {{ $posts->links() }}
         </div>
     </div>
 @endsection
+
+@push('script')
+    <script>
+        jQuery(function($) {
+            $('[data-confirm-delete]').on('submit', function(event) {
+                if (!confirm(@json(__('Are you sure?')))) {
+                    event.preventDefault();
+                }
+            });
+        });
+    </script>
+@endpush

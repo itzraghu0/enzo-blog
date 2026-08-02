@@ -29,16 +29,19 @@ class BlogController extends Controller
         $categoryId = $request->get('category_id');
         $categoryId = is_numeric($categoryId) ? (int) $categoryId : null;
 
+        $search = trim((string) $request->get('search', ''));
+
         $filters = [
             'locale' => $locale,
             'sort' => $sort,
             'month' => $month,
             'category_id' => $categoryId,
+            'search' => $search,
         ];
 
-        $perPage = (int) $request->get('per_page', 20);
-        if (! in_array($perPage, [12, 20, 40], true)) {
-            $perPage = 20;
+        $perPage = (int) $request->get('per_page', 10);
+        if (! in_array($perPage, [10, 20, 40], true)) {
+            $perPage = 10;
         }
 
         return view('frontend.blog.index', [
@@ -48,12 +51,12 @@ class BlogController extends Controller
             'availableMonths' => $this->postService->publishedMonths(),
             'filters' => array_merge($filters, ['per_page' => $perPage]),
             'sortOptions' => [
-                'recent_desc' => __('Most recent first'),
-                'recent_asc' => __('Oldest first'),
+                'recent_desc' => __('Neueste zuerst'),
+                'recent_asc' => __('Älteste zuerst'),
                 'title_asc' => __('Title A-Z'),
                 'title_desc' => __('Title Z-A'),
             ],
-            'perPageOptions' => [12, 20, 40],
+            'perPageOptions' => [10, 20, 40],
         ]);
     }
 

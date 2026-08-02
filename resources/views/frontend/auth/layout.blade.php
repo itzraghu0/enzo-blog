@@ -12,6 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link href="{{ URL('assets/vendors/keenicons/styles.bundle.css') }}" rel="stylesheet" />
     <link href="{{ URL('assets/css/styles.css') }}" rel="stylesheet" />
+    <link href="{{ URL('assets/css/custom.css') }}" rel="stylesheet" />
     @stack('style')
 </head>
 <body class="antialiased flex h-full text-base text-foreground bg-background">
@@ -35,6 +36,8 @@
 
     <script src="{{ URL('assets/js/core.bundle.js') }}"></script>
     <script src="{{ URL('assets/vendors/ktui/ktui.min.js') }}"></script>
+    <script src="{{ URL('assets/vendors/jquery/jquery.min.js') }}"></script>
+    <script src="{{ URL('assets/js/custom.js') }}"></script>
     @stack('script')
 </body>
 </html>

@@ -1,17 +1,5 @@
 @extends('frontend.auth.layout')
 
-@push('style')
-        <style>
-        .branded-bg {
-            background-image: url('{{ URL('assets/media/images/2600x1600/1.png') }}');
-        }
-
-        .dark .branded-bg {
-            background-image: url('{{ URL('assets/media/images/2600x1600/1-dark.png') }}');
-        }
-    </style>
-@endpush
-
 @section('content')
     <div class="grid lg:grid-cols-2 grow">
         <div class="flex justify-center items-center p-8 lg:p-10 order-2 lg:order-1">

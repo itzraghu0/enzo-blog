@@ -2,6 +2,39 @@
     $appName = config('app.name', 'Blog');
     $currentLocale = request('locale', $locale ?? (app()->getLocale() ?: config('blog.default_locale', 'en')));
     $supportedLocales = config('blog.supported_locales', ['en', 'de']);
+    $authUser = auth()->user();
+    $userInitials = $authUser
+        ? collect(explode(' ', trim($authUser->name)))
+            ->filter()
+            ->take(2)
+            ->map(fn ($part) => \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($part, 0, 1)))
+            ->implode('')
+        : null;
+    $siteSettings = app(\App\Services\SiteSettingService::class)->values();
+    $footerPosts = \Illuminate\Support\Facades\DB::table('posts')
+        ->leftJoin('post_translations as pt_locale', function ($join) use ($currentLocale): void {
+            $join->on('pt_locale.post_id', '=', 'posts.id')
+                ->where('pt_locale.locale', '=', $currentLocale);
+        })
+        ->leftJoin('post_translations as pt_default', function ($join): void {
+            $join->on('pt_default.post_id', '=', 'posts.id')
+                ->where('pt_default.locale', '=', config('blog.default_locale', 'de'));
+        })
+        ->where('posts.status', 'published')
+        ->whereNull('posts.deleted_at')
+        ->whereNotNull('posts.published_at')
+        ->orderByDesc('posts.published_at')
+        ->limit(3)
+        ->get([
+            'posts.published_at',
+            \Illuminate\Support\Facades\DB::raw('COALESCE(pt_locale.title, pt_default.title) as title'),
+            \Illuminate\Support\Facades\DB::raw('COALESCE(pt_locale.slug, pt_default.slug) as slug'),
+        ])
+        ->map(function (object $post): object {
+            $post->published_at = $post->published_at ? \Illuminate\Support\Carbon::parse($post->published_at) : null;
+
+            return $post;
+        });
 @endphp
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', $currentLocale) }}" class="scroll-smooth">
@@ -13,238 +46,11 @@
     <meta name="description" content="@yield('metaDescription', __('A multilingual editorial blog with authors, categories, and structured data.'))">
 
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <script>
-        (function () {
-            try {
-                if (localStorage.getItem('theme') === 'dark') {
-                    document.documentElement.classList.add('dark');
-                }
-            } catch (error) {
-                // Ignore theme storage issues.
-            }
-        })();
-    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
-
-    <style>
-        :root {
-            --surface: #f7f9fb;
-            --surface-2: #f2f4f6;
-            --surface-3: #eceef0;
-            --surface-4: #e6e8ea;
-            --text: #191c1e;
-            --muted: #434655;
-            --border: #c3c6d7;
-            --primary: #004ac6;
-            --primary-soft: #dbe1ff;
-            --primary-strong: #003ea8;
-            --shadow: 0 18px 50px rgba(25, 28, 30, 0.06);
-            --shadow-hover: 0 24px 60px rgba(0, 74, 198, 0.10);
-        }
-
-        html.dark {
-            --surface: #0b1220;
-            --surface-2: #10192c;
-            --surface-3: #152036;
-            --surface-4: #1c2a44;
-            --text: #eef2ff;
-            --muted: #b7c2df;
-            --border: #2a3a5d;
-            --shadow: 0 20px 50px rgba(0, 0, 0, 0.24);
-            --shadow-hover: 0 24px 60px rgba(36, 99, 235, 0.22);
-        }
-
-        html, body {
-            height: 100%;
-        }
-
-        body {
-            margin: 0;
-            background: var(--surface);
-            color: var(--text);
-            font-family: Inter, sans-serif;
-        }
-
-        .editorial-shell {
-            max-width: 1280px;
-            margin: 0 auto;
-            padding-left: 24px;
-            padding-right: 24px;
-        }
-
-        .editorial-card {
-            background: rgba(255, 255, 255, 0.92);
-            border: 1px solid rgba(195, 198, 215, 0.72);
-            border-radius: 1.5rem;
-            box-shadow: var(--shadow);
-            transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
-            backdrop-filter: blur(12px);
-        }
-
-        html.dark .editorial-card {
-            background: rgba(16, 25, 44, 0.96);
-        }
-
-        .editorial-card:hover {
-            transform: translateY(-3px);
-            box-shadow: var(--shadow-hover);
-            border-color: rgba(0, 74, 198, 0.20);
-        }
-
-        .editorial-chip {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.35rem;
-            border-radius: 9999px;
-            padding: 0.5rem 0.9rem;
-            background: var(--surface-2);
-            color: var(--text);
-            border: 1px solid var(--border);
-            font-size: 0.875rem;
-            font-weight: 600;
-        }
-
-        .editorial-chip-primary {
-            background: rgba(0, 74, 198, 0.08);
-            color: var(--primary);
-            border-color: rgba(0, 74, 198, 0.16);
-        }
-
-        .editorial-input,
-        .editorial-select,
-        .editorial-textarea {
-            width: 100%;
-            border-radius: 0.875rem;
-            border: 1px solid var(--border);
-            background: var(--surface-2);
-            color: var(--text);
-            padding: 0.9rem 1rem;
-            outline: none;
-            transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
-        }
-
-        .editorial-input:focus,
-        .editorial-select:focus,
-        .editorial-textarea:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(0, 74, 198, 0.12);
-            background: rgba(255, 255, 255, 0.98);
-        }
-
-        .editorial-button {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 0.875rem;
-            padding: 0.875rem 1.1rem;
-            font-size: 0.9rem;
-            font-weight: 700;
-            transition: transform 180ms ease, background 180ms ease, color 180ms ease, border-color 180ms ease;
-        }
-
-        .editorial-button:hover {
-            transform: translateY(-1px);
-        }
-
-        .editorial-button-primary {
-            background: var(--primary);
-            color: #fff;
-        }
-
-        .editorial-button-primary:hover {
-            background: var(--primary-strong);
-        }
-
-        .editorial-button-secondary {
-            background: transparent;
-            color: var(--text);
-            border: 1px solid var(--border);
-        }
-
-        .progress-bar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            z-index: 70;
-            width: 0;
-            height: 2px;
-            background: var(--primary);
-        }
-
-        .article-content {
-            color: var(--muted);
-            font-size: 1.05rem;
-            line-height: 1.9;
-        }
-
-        .article-content > * + * {
-            margin-top: 1.15rem;
-        }
-
-        .article-content h2,
-        .article-content h3,
-        .article-content h4 {
-            color: var(--text);
-            font-weight: 700;
-            line-height: 1.25;
-            margin-top: 2.1rem;
-        }
-
-        .article-content h2 {
-            font-size: 1.8rem;
-        }
-
-        .article-content h3 {
-            font-size: 1.4rem;
-        }
-
-        .article-content p,
-        .article-content ul,
-        .article-content ol,
-        .article-content blockquote {
-            margin: 0;
-        }
-
-        .article-content ul,
-        .article-content ol {
-            padding-left: 1.25rem;
-        }
-
-        .article-content ul li {
-            position: relative;
-            padding-left: 0.75rem;
-            margin: 0.5rem 0;
-            list-style: none;
-        }
-
-        .article-content ul li::before {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 0.75rem;
-            width: 0.35rem;
-            height: 0.35rem;
-            border-radius: 9999px;
-            background: var(--primary);
-        }
-
-        .article-content blockquote {
-            padding: 1.25rem 1.5rem;
-            border-radius: 1rem;
-            border-left: 4px solid var(--primary);
-            background: var(--surface-2);
-            color: var(--text);
-            font-style: italic;
-        }
-
-        .material-symbols-outlined {
-            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-            vertical-align: middle;
-        }
-    </style>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+    <link href="{{ asset('assets/css/custom.css') }}" rel="stylesheet">
 
     @stack('head')
     @stack('structured-data')
@@ -252,51 +58,125 @@
 <body class="min-h-screen">
     <div class="progress-bar" id="reading-progress"></div>
 
-    <header class="sticky top-0 z-50 border-b border-[color:var(--border)] bg-[color:var(--surface)]/92 backdrop-blur-xl">
-        <div class="editorial-shell">
-            <div class="flex h-20 items-center justify-between gap-4">
-                <div class="flex items-center gap-4">
-                    <a href="{{ route('blog.index', ['locale' => $currentLocale]) }}" class="text-xl font-extrabold tracking-[-0.02em] text-[color:var(--text)]">
-                        {{ $appName }}
-                    </a>
-                    <nav class="hidden items-center gap-3 md:flex">
-                        <a href="{{ route('blog.index', ['locale' => $currentLocale]) }}" class="editorial-chip">{{ __('Home') }}</a>
-                        <a href="{{ route('blog.index', ['locale' => $currentLocale, 'sort' => 'recent_desc']) }}#latest" class="editorial-chip">{{ __('Latest') }}</a>
-                        <a href="{{ route('blog.index', ['locale' => $currentLocale]) }}#categories" class="editorial-chip">{{ __('Categories') }}</a>
-                    </nav>
+    <header class="relative z-50">
+        <div class="site-topbar">
+            <div class="editorial-shell flex min-h-[42px] flex-wrap items-center justify-between gap-4">
+                <div class="flex items-center">
+                    <div class="site-topbar-cell">
+                        <div class="site-control" data-site-dropdown>
+                            <button type="button" class="site-control-button" data-site-dropdown-toggle aria-expanded="false">
+                                <span>{{ strtoupper($currentLocale) }}</span>
+                                <i class="fa-solid fa-chevron-down text-xs"></i>
+                            </button>
+                            <div class="site-control-menu site-control-menu-left">
+                                @foreach ($supportedLocales as $supportedLocale)
+                                    <a href="{{ route('set-language', $supportedLocale) }}" class="site-control-item">
+                                        <span class="font-semibold">{{ strtoupper($supportedLocale) }}</span>
+                                        @if ($supportedLocale === $currentLocale)
+                                            <i class="fa-solid fa-check ms-auto text-[color:var(--primary)]"></i>
+                                        @endif
+                                    </a>
+                                @endforeach
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="flex items-center gap-2">
-                    <div class="hidden items-center gap-2 sm:flex">
-                        @foreach ($supportedLocales as $supportedLocale)
-                            <a href="{{ route('set-language', $supportedLocale) }}" class="editorial-chip {{ $supportedLocale === $currentLocale ? 'editorial-chip-primary' : '' }}">
-                                {{ strtoupper($supportedLocale) }}
-                            </a>
-                        @endforeach
+                <div class="flex items-center justify-center">
+                    <div class="site-topbar-cell gap-2">
+                        <a href="{{ $siteSettings['social_facebook_url'] ?? '#' }}" class="site-social site-social-facebook" aria-label="Facebook">
+                            <i class="fa-brands fa-facebook-f"></i>
+                        </a>
+                        <a href="{{ $siteSettings['social_instagram_url'] ?? '#' }}" class="site-social site-social-instagram" aria-label="Instagram">
+                            <i class="fa-brands fa-instagram"></i>
+                        </a>
+                        <a href="{{ $siteSettings['social_whatsapp_url'] ?? '#' }}" class="site-social site-social-whatsapp" aria-label="WhatsApp">
+                            <i class="fa-brands fa-whatsapp"></i>
+                        </a>
+                        <a href="{{ $siteSettings['social_tiktok_url'] ?? '#' }}" class="site-social site-social-tiktok" aria-label="TikTok">
+                            <i class="fa-brands fa-tiktok"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="flex items-center">
+                    <a href="{{ $siteSettings['topbar_newsletter_url'] ?? '#' }}" class="site-topbar-link">{{ __('Newsletter') }}</a>
+                    <a href="{{ $siteSettings['topbar_faq_url'] ?? '#' }}" class="site-topbar-link site-topbar-end">{{ __('FAQ') }}</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="site-brandbar">
+            <div class="editorial-shell grid items-center gap-5 py-4 lg:grid-cols-[1fr_auto_1fr]">
+                <div class="flex items-center gap-4">
+                    <span class="material-symbols-outlined site-contact-icon">phone_in_talk</span>
+                    <div>
+                        <div class="site-contact-title">{{ __('Call') }}</div>
+                        <div class="site-contact-text">{{ $siteSettings['footer_phone'] ?? '+49 6187 - 9959050' }}</div>
+                    </div>
+                </div>
+
+                <a href="{{ route('blog.index', ['locale' => $currentLocale]) }}" class="flex justify-center">
+                    <img src="{{ asset('logo.png') }}" alt="{{ $appName }}" class="site-logo">
+                </a>
+
+                <div class="flex items-center justify-between gap-6 lg:justify-end">
+                    <div class="flex items-center gap-4">
+                        <span class="material-symbols-outlined site-contact-icon">mail</span>
+                        <div>
+                            <div class="site-contact-title">{{ __('Für Fragen') }}</div>
+                            <div class="site-contact-text">{{ $siteSettings['footer_email'] ?? config('mail.from.address', 'info@example.com') }}</div>
+                        </div>
                     </div>
 
-                    <button type="button" class="editorial-chip" onclick="window.toggleTheme && window.toggleTheme()">
-                        <span class="material-symbols-outlined text-[18px]">dark_mode</span>
-                        <span class="hidden sm:inline">{{ __('Theme') }}</span>
-                    </button>
+                    <div class="flex items-center gap-3">
+                        <div class="site-control" data-site-dropdown>
+                            <button type="button" class="site-icon-button" data-site-dropdown-toggle aria-expanded="false" aria-label="{{ __('Theme') }}">
+                                <span class="material-symbols-outlined text-[22px]">contrast</span>
+                            </button>
+                            <div class="site-control-menu">
+                                <button type="button" class="site-control-item" data-theme-option="light">
+                                    <span class="material-symbols-outlined text-[18px]">light_mode</span>
+                                    {{ __('Light') }}
+                                </button>
+                                <button type="button" class="site-control-item" data-theme-option="dark">
+                                    <span class="material-symbols-outlined text-[18px]">dark_mode</span>
+                                    {{ __('Dark') }}
+                                </button>
+                            </div>
+                        </div>
 
-                    @auth
-                        @if (auth()->user()->canManageBlog())
-                            <a href="{{ route('admin.dashboard') }}" class="editorial-button editorial-button-primary">
-                                {{ __('Admin') }}
-                            </a>
-                        @else
-                            <a href="{{ route('blog.index', ['locale' => $currentLocale]) }}" class="editorial-button editorial-button-secondary" onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
-                                {{ __('Logout') }}
-                            </a>
+                        @auth
+                            <div class="site-control" data-site-dropdown>
+                                <button type="button" class="site-user-initials" data-site-dropdown-toggle aria-expanded="false" aria-label="{{ __('Account') }}">
+                                    {{ $userInitials ?: 'U' }}
+                                </button>
+                                <div class="site-control-menu">
+                                    <div class="px-3 py-2">
+                                        <div class="font-semibold text-sm">{{ $authUser->name }}</div>
+                                        <div class="text-xs text-[color:var(--muted)] break-all">{{ $authUser->email }}</div>
+                                    </div>
+                                    @if ($authUser->canManageBlog())
+                                        <a href="{{ route('admin.dashboard') }}" class="site-control-item">
+                                            <span class="material-symbols-outlined text-[18px]">dashboard</span>
+                                            {{ __('Admin') }}
+                                        </a>
+                                    @endif
+                                    <button type="button" class="site-control-item" data-submit-form="logout-form">
+                                        <span class="material-symbols-outlined text-[18px]">logout</span>
+                                        {{ __('Logout') }}
+                                    </button>
+                                </div>
+                            </div>
                             <form id="logout-form" action="{{ route('logout') }}" method="POST" class="hidden">
                                 @csrf
                             </form>
-                        @endif
-                    @else
-                        <a href="{{ route('login') }}" class="editorial-button editorial-button-secondary">{{ __('Sign in') }}</a>
-                        <a href="{{ route('register') }}" class="editorial-button editorial-button-primary">{{ __('Sign up') }}</a>
-                    @endauth
+                        @else
+                            <a href="{{ route('login') }}" class="site-icon-button" aria-label="{{ __('Sign in') }}">
+                                <span class="material-symbols-outlined text-[24px]">person</span>
+                            </a>
+                        @endauth
+                    </div>
                 </div>
             </div>
         </div>
@@ -322,64 +202,75 @@
         @yield('content')
     </main>
 
-    <footer class="mt-16 border-t border-[color:var(--border)] bg-[color:var(--surface-2)]">
-        <div class="editorial-shell py-10">
-            <div class="grid gap-8 md:grid-cols-3">
+    <footer class="site-footer mt-16">
+        <div class="editorial-shell py-12 md:py-16">
+            <div class="grid gap-10 md:grid-cols-2 xl:grid-cols-[1fr_1.1fr_1fr_1.05fr] xl:gap-16">
                 <div>
-                    <div class="text-lg font-extrabold tracking-[-0.02em]">{{ $appName }}</div>
-                    <p class="mt-3 max-w-sm text-sm leading-7 text-[color:var(--muted)]">
-                        {{ __('A multilingual editorial system for authors, members, and admin staff.') }}
-                    </p>
-                </div>
-                <div>
-                    <div class="text-sm font-bold uppercase tracking-[0.18em] text-[color:var(--muted)]">{{ __('Explore') }}</div>
-                    <div class="mt-4 flex flex-col gap-3 text-sm">
-                        <a href="{{ route('blog.index', ['locale' => $currentLocale]) }}" class="hover:text-[color:var(--primary)]">{{ __('Home') }}</a>
-                        <a href="{{ route('register') }}" class="hover:text-[color:var(--primary)]">{{ __('Join as member') }}</a>
-                        <a href="{{ route('login') }}" class="hover:text-[color:var(--primary)]">{{ __('Sign in') }}</a>
+                    <a href="{{ route('blog.index', ['locale' => $currentLocale]) }}" class="inline-flex">
+                        <img src="{{ asset('logo.png') }}" alt="{{ $appName }}" class="site-footer-logo">
+                    </a>
+                    <div class="mt-6 grid gap-3">
+                        <div class="flex gap-3 site-footer-text">
+                            <i class="fa-solid fa-location-dot site-footer-icon"></i>
+                            <span>{{ $siteSettings['footer_address'] ?? '' }}</span>
+                        </div>
+                        <div class="flex gap-3 site-footer-text">
+                            <i class="fa-solid fa-phone-volume site-footer-icon"></i>
+                            <span>{{ $siteSettings['footer_phone'] ?? '' }}</span>
+                        </div>
+                        <div class="flex gap-3 site-footer-text">
+                            <i class="fa-solid fa-fax site-footer-icon"></i>
+                            <span>{{ $siteSettings['footer_fax'] ?? '' }}</span>
+                        </div>
+                        <div class="flex gap-3 site-footer-text">
+                            <i class="fa-regular fa-envelope site-footer-icon"></i>
+                            <a href="mailto:{{ $siteSettings['footer_email'] ?? '' }}" class="site-footer-link">{{ $siteSettings['footer_email'] ?? '' }}</a>
+                        </div>
                     </div>
                 </div>
+
                 <div>
-                    <div class="text-sm font-bold uppercase tracking-[0.18em] text-[color:var(--muted)]">{{ __('Language') }}</div>
-                    <div class="mt-4 flex flex-wrap gap-2">
-                        @foreach ($supportedLocales as $supportedLocale)
-                            <a href="{{ route('set-language', $supportedLocale) }}" class="editorial-chip {{ $supportedLocale === $currentLocale ? 'editorial-chip-primary' : '' }}">
-                                {{ strtoupper($supportedLocale) }}
-                            </a>
-                        @endforeach
+                    <div class="site-footer-title uppercase">{{ __('Aktuelle Blog Beiträge') }}</div>
+                    <div class="mt-6">
+                        @forelse ($footerPosts as $footerPost)
+                            @if ($footerPost->slug)
+                                <a href="{{ route('blog.show', $footerPost->slug) }}" class="site-footer-post block">
+                                    <span class="site-footer-link block">{{ \Illuminate\Support\Str::limit($footerPost->title ?? __('Untitled'), 34) }}</span>
+                                    <span class="site-footer-text block">{{ optional($footerPost->published_at)->format('d.m.Y') }}</span>
+                                </a>
+                            @endif
+                        @empty
+                            <div class="site-footer-text">{{ __('No posts found') }}</div>
+                        @endforelse
+                    </div>
+                </div>
+
+                <div>
+                    <div class="site-footer-title">{{ __('Service') }}</div>
+                    <div class="mt-6 grid gap-4">
+                        <a href="{{ $siteSettings['footer_service_help_url'] ?? '#' }}" class="site-footer-link">{{ __('Hilfe & Support') }}</a>
+                        <a href="{{ $siteSettings['footer_service_contact_url'] ?? '#' }}" class="site-footer-link">{{ __('Kontakt') }}</a>
+                        <a href="{{ $siteSettings['footer_service_payment_url'] ?? '#' }}" class="site-footer-link">{{ __('Zahlungsmöglichkeiten') }}</a>
+                        <a href="{{ $siteSettings['footer_service_shipping_url'] ?? '#' }}" class="site-footer-link">{{ __('Versandinformationen') }}</a>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="site-footer-title">{{ __('Gesetzliche Informationen') }}</div>
+                    <div class="mt-6 grid gap-4">
+                        <a href="{{ $siteSettings['footer_legal_terms_url'] ?? '#' }}" class="site-footer-link">{{ __('AGB') }}</a>
+                        <a href="{{ $siteSettings['footer_legal_privacy_url'] ?? '#' }}" class="site-footer-link">{{ __('Datenschutz') }}</a>
+                        <a href="{{ $siteSettings['footer_legal_imprint_url'] ?? '#' }}" class="site-footer-link">{{ __('Impressum') }}</a>
+                        <a href="{{ $siteSettings['footer_legal_cancellation_url'] ?? '#' }}" class="site-footer-link">{{ __('Widerrufsrecht') }}</a>
+                        <a href="{{ $siteSettings['footer_legal_sitemap_url'] ?? '#' }}" class="site-footer-link">{{ __('Sitemap') }}</a>
                     </div>
                 </div>
             </div>
         </div>
     </footer>
 
-    <script>
-        (function () {
-            const progress = document.getElementById('reading-progress');
-
-            function updateProgress() {
-                const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
-                const scrollHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight;
-                const width = scrollHeight > 0 ? (scrollTop / scrollHeight) * 100 : 0;
-                if (progress) {
-                    progress.style.width = width + '%';
-                }
-            }
-
-            window.addEventListener('scroll', updateProgress, { passive: true });
-            updateProgress();
-
-            window.toggleTheme = function () {
-                const root = document.documentElement;
-                const isDark = root.classList.toggle('dark');
-                try {
-                    localStorage.setItem('theme', isDark ? 'dark' : 'light');
-                } catch (error) {
-                    // Ignore theme storage issues.
-                }
-            };
-        })();
-    </script>
+    <script src="{{ asset('assets/vendors/jquery/jquery.min.js') }}"></script>
+    <script src="{{ asset('assets/js/custom.js') }}"></script>
     @stack('scripts')
 </body>
 </html>

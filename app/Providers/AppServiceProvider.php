@@ -9,6 +9,7 @@ use App\Services\GeoService;
 use App\Services\MediaService;
 use App\Services\PostService;
 use App\Services\SeoService;
+use App\Services\SiteSettingService;
 use App\Services\SlugService;
 use App\Services\TranslationService;
 use Illuminate\Support\Facades\Schema;
@@ -25,6 +26,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(TranslationService::class);
         $this->app->singleton(SlugService::class);
         $this->app->singleton(SeoService::class);
+        $this->app->singleton(SiteSettingService::class);
         $this->app->singleton(GeoService::class);
         $this->app->singleton(MediaService::class);
         $this->app->singleton(PostService::class);

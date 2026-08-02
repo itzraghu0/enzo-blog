@@ -3,7 +3,8 @@
 
 @section('breadcrumb')
     <div class="mb-5 lg:mb-7.5">
-        <div class="w-full kt-container-fluid px-6 lg:px-8 max-w-[2200px] flex items-center justify-between flex-wrap gap-5 mx-auto">
+        <div
+            class="w-full kt-container-fluid px-6 lg:px-8 max-w-[2200px] flex items-center justify-between flex-wrap gap-5 mx-auto">
             <div class="flex flex-col justify-center items-start flex-wrap gap-1 lg:gap-2">
                 <h1 class="font-medium text-lg text-mono">{{ __('Staff') }}</h1>
                 <div class="flex items-center gap-1 text-sm font-normal">
@@ -14,7 +15,7 @@
                     <span class="text-secondary-foreground">{{ __('List') }}</span>
                 </div>
             </div>
-            <div class="flex items-center flex-wrap gap-1.5 lg:gap-3.5">
+            <div class="flex flex-wrap items-center gap-1.5 lg:gap-3.5">
                 <a href="{{ route('admin.staff.create') }}" class="kt-btn kt-btn-primary">
                     <i class="ki-filled ki-plus-circle text-lg me-1"></i>
                     {{ __('Add new') }}
@@ -60,88 +61,88 @@
         </div>
     </div>
 
-    @php
-        $staffTabs = [
-            '' => __('All'),
-            \App\Models\User::ROLE_ADMIN => __('Admins'),
-            \App\Models\User::ROLE_EDITOR => __('Editors'),
-            \App\Models\User::ROLE_AUTHOR => __('Authors'),
-        ];
-    @endphp
+    <div class="kt-card mb-7.5">
+        <div class="kt-card-header flex-wrap gap-3 py-5">
+            <div>
+                <h3 class="kt-card-title">{{ __('Filter staff') }}</h3>
+                <div class="text-sm text-secondary-foreground">
+                    {{ __('Search staff.') }}
+                </div>
+            </div>
 
-    <div class="kt-card kt-card-grid min-w-full overflow-hidden">
-        <div class="kt-card-content border-b border-border p-6 lg:p-7.5">
-            <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-                <div class="max-w-2xl">
-                    <div class="text-xs font-semibold uppercase tracking-[0.24em] text-secondary-foreground">
-                        {{ __('Account teams') }}
+        </div>
+
+        <div class="kt-card-content border-b border-border p-5">
+            <form id="staff-filter-form" action="{{ route('admin.staff.index') }}" method="GET">
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12 xl:items-end">
+                    <div class="kt-form-item xl:col-span-5">
+                        <label class="kt-form-label">{{ __('Search') }}</label>
+                        <div class="kt-form-control">
+                            <label class="kt-input w-full">
+                                <i class="ki-filled ki-magnifier"></i>
+                                <input name="search" placeholder="{{ __('Search staff') }}" type="text"
+                                    value="{{ $filters['search'] ?? '' }}">
+                            </label>
+                        </div>
                     </div>
-                    <h3 class="mt-2 text-2xl font-semibold text-mono">
-                        {{ __('Staff list') }}
-                    </h3>
-                    <p class="mt-2 text-sm text-secondary-foreground">
-                        {{ __('Admin, editor, and author accounts in a compact team view.') }}
-                    </p>
-                </div>
-
-                <div class="flex flex-wrap items-center gap-3">
-                    <label class="kt-input min-w-[260px]">
-                        <i class="ki-filled ki-magnifier"></i>
-                        <input form="staff-filter-form" name="search" placeholder="{{ __('Search staff') }}" type="text" value="{{ $filters['search'] ?? '' }}">
-                    </label>
-                    <label class="kt-label whitespace-nowrap">
-                        {{ __('Verified only') }}
-                        <input form="staff-filter-form" class="kt-switch kt-switch-sm" name="verified" type="checkbox" value="1" @checked((bool) ($filters['verified'] ?? false))>
-                    </label>
-                    <a href="{{ route('admin.staff.create') }}" class="kt-btn kt-btn-primary">
-                        <i class="ki-filled ki-plus-circle text-lg me-1"></i>
-                        {{ __('Add new') }}
-                    </a>
-                </div>
-            </div>
-
-            <div class="mt-6 flex flex-wrap items-center gap-2">
-                @foreach ($staffTabs as $value => $label)
-                    <a href="{{ route('admin.staff.index', array_filter(['role' => $value])) }}"
-                        class="kt-btn kt-btn-sm {{ (string) ($filters['role'] ?? '') === (string) $value ? 'kt-btn-primary' : 'kt-btn-outline' }}">
-                        {{ $label }}
-                    </a>
-                @endforeach
-            </div>
-
-            <form id="staff-filter-form" action="{{ route('admin.staff.index') }}" method="GET" class="mt-6">
-                <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-end">
-                    <div class="lg:col-span-3">
+                    <div class="kt-form-item xl:col-span-3">
                         <label class="kt-form-label">{{ __('Role') }}</label>
-                        <select name="role" class="kt-input w-full">
-                            <option value="">{{ __('All roles') }}</option>
-                            @foreach ($roleOptions as $value => $label)
-                                <option value="{{ $value }}" @selected((string) ($filters['role'] ?? '') === (string) $value)>
-                                    {{ $label }}
-                                </option>
-                            @endforeach
-                        </select>
+                        <div class="kt-form-control">
+                            <select name="role" class="kt-input w-full">
+                                <option value="">{{ __('All roles') }}</option>
+                                @foreach ($roleOptions as $value => $label)
+                                    <option value="{{ $value }}" @selected((string) ($filters['role'] ?? '') === (string) $value)>
+                                        {{ $label }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
                     </div>
-                    <div class="lg:col-span-3">
+                    <div class="kt-form-item xl:col-span-2">
                         <label class="kt-form-label">{{ __('Per page') }}</label>
-                        <select name="per_page" class="kt-input w-full">
-                            @foreach ($perPageOptions as $count)
-                                <option value="{{ $count }}" @selected((int) ($filters['per_page'] ?? 20) === $count)>
-                                    {{ $count }}
-                                </option>
-                            @endforeach
-                        </select>
+                        <div class="kt-form-control">
+                            <select name="per_page" class="kt-input w-full">
+                                @foreach ($perPageOptions as $count)
+                                    <option value="{{ $count }}" @selected((int) ($filters['per_page'] ?? 20) === $count)>
+                                        {{ $count }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
                     </div>
-                    <div class="lg:col-span-6 flex gap-2">
-                        <button type="submit" class="kt-btn kt-btn-primary w-full justify-center">
-                            <i class="ki-filled ki-magnifier me-1"></i>{{ __('Search') }}
-                        </button>
-                        <a href="{{ route('admin.staff.index') }}" class="kt-btn kt-btn-outline w-full justify-center">
-                            {{ __('Reset') }}
-                        </a>
+                    <div class="kt-form-item xl:col-span-2">
+                        <label class="kt-form-label">{{ __('Status') }}</label>
+                        <div class="kt-form-control">
+                            <select name="verified" class="kt-input w-full">
+                                <option value="">{{ __('All') }}</option>
+                                <option value="1" @selected(($filters['verified'] ?? null) === true)>{{ __('Verified') }}</option>
+                                <option value="0" @selected(($filters['verified'] ?? null) === false)>{{ __('Pending') }}</option>
+                            </select>
+                        </div>
                     </div>
+                </div>
+
+                <div class="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 sm:max-w-64">
+                    <button type="submit" class="kt-btn kt-btn-primary justify-center">
+                        <i class="ki-filled ki-magnifier me-1"></i>{{ __('Search') }}
+                    </button>
+                    <a href="{{ route('admin.staff.index') }}" class="kt-btn kt-btn-outline justify-center">
+                        {{ __('Reset') }}
+                    </a>
                 </div>
             </form>
+        </div>
+
+    </div>
+
+    <div class="kt-card kt-card-grid min-w-full overflow-hidden">
+        <div class="kt-card-header flex-wrap gap-3 py-5">
+            <div>
+                <h3 class="kt-card-title">{{ __('Staff list') }}</h3>
+                <div class="text-sm text-secondary-foreground">
+                    {{ __('Admin, editor, and author accounts in a compact team view.') }}
+                </div>
+            </div>
         </div>
 
         <div class="kt-card-content p-6 lg:p-7.5">
@@ -150,9 +151,6 @@
                     <table class="kt-table table-fixed kt-table-border" data-kt-datatable-table="true">
                         <thead>
                             <tr>
-                                <th class="w-[60px] text-center">
-                                    <input class="kt-checkbox kt-checkbox-sm" type="checkbox">
-                                </th>
                                 <th class="w-[320px]">
                                     <span class="kt-table-col">
                                         <span class="kt-table-col-label">{{ __('Staff member') }}</span>
@@ -189,19 +187,19 @@
                                     $statusClass = $user->email_verified_at ? 'kt-badge-success' : 'kt-badge-warning';
                                 @endphp
                                 <tr>
-                                    <td class="text-center">
-                                        <input class="kt-checkbox kt-checkbox-sm" type="checkbox" value="{{ $user->id }}">
-                                    </td>
                                     <td>
                                         <div class="flex items-center gap-3">
-                                            <div class="size-12 rounded-full bg-gradient-to-br from-slate-900 to-sky-600 text-white flex items-center justify-center font-semibold text-base">
+                                            <div
+                                                class="size-12 rounded-full bg-gradient-to-br from-slate-900 to-sky-600 text-white flex items-center justify-center font-semibold text-base">
                                                 {{ $initial }}
                                             </div>
                                             <div class="flex flex-col gap-1.5">
-                                                <a href="{{ route('admin.staff.edit', $user) }}" class="leading-none font-medium text-sm text-mono hover:text-primary">
+                                                <a href="{{ route('admin.staff.edit', $user) }}"
+                                                    class="leading-none font-medium text-sm text-mono hover:text-primary">
                                                     {{ $user->name }}
                                                 </a>
-                                                <span class="text-sm text-secondary-foreground font-normal">#{{ $user->id }}</span>
+                                                <span
+                                                    class="text-sm text-secondary-foreground font-normal">#{{ $user->id }}</span>
                                             </div>
                                         </div>
                                     </td>
@@ -217,14 +215,17 @@
                                         {{ $user->created_at?->format('d M, Y') }}
                                     </td>
                                     <td>
-                                        <div class="flex items-center justify-end gap-2">
-                                            <a href="{{ route('admin.staff.edit', $user) }}" class="kt-btn kt-btn-icon kt-btn-bg-light kt-btn-active-light-primary kt-btn-sm">
+                                        <div class="flex flex-wrap items-center justify-end gap-2">
+                                            <a href="{{ route('admin.staff.edit', $user) }}"
+                                                class="kt-btn kt-btn-icon kt-btn-bg-light kt-btn-active-light-primary kt-btn-sm">
                                                 <i class="ki-filled ki-pencil"></i>
                                             </a>
-                                            <form action="{{ route('admin.staff.destroy', $user) }}" method="POST" onsubmit="return confirm('{{ __('Are you sure?') }}');">
+                                            <form action="{{ route('admin.staff.destroy', $user) }}" method="POST"
+                                                data-confirm-delete>
                                                 @csrf
                                                 @method('DELETE')
-                                                <button type="submit" class="kt-btn kt-btn-icon kt-btn-bg-light kt-btn-active-light-danger kt-btn-sm">
+                                                <button type="submit"
+                                                    class="kt-btn kt-btn-icon kt-btn-bg-light kt-btn-active-light-danger kt-btn-sm">
                                                     <i class="ki-filled ki-trash"></i>
                                                 </button>
                                             </form>
@@ -233,7 +234,8 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="6" class="text-center text-secondary-foreground py-10">{{ __('No items found') }}</td>
+                                    <td colspan="5" class="text-center text-secondary-foreground py-10">
+                                        {{ __('No items found') }}</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -242,8 +244,24 @@
             </div>
         </div>
 
-        <div class="p-5">
+        <div class="kt-card-footer flex flex-col gap-3 p-5 md:flex-row md:items-center md:justify-between">
+            <div class="text-sm text-secondary-foreground">
+                {{ __('Showing') }} {{ $staff->firstItem() ?? 0 }}-{{ $staff->lastItem() ?? 0 }} {{ __('of') }}
+                {{ $staff->total() }}
+            </div>
             {{ $staff->links() }}
         </div>
     </div>
 @endsection
+
+@push('script')
+    <script>
+        jQuery(function($) {
+            $('[data-confirm-delete]').on('submit', function(event) {
+                if (!confirm(@json(__('Are you sure?')))) {
+                    event.preventDefault();
+                }
+            });
+        });
+    </script>
+@endpush

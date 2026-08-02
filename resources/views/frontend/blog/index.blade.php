@@ -1,20 +1,16 @@
 @extends('frontend.blog.layout')
-@section('title', config('app.name', 'Blog'))
-@section('metaDescription', __('A multilingual blog with authors, categories, media, SEO metadata, and locale-aware content.'))
+@section('title', __('Aktuelle Neuigkeiten'))
+@section('metaDescription', __('Aktuelle Blogbeiträge mit Kategorien, Kommentaren und strukturierten Daten.'))
 
 @php
     $entries = $posts->getCollection();
-    $featuredPost = $entries->first();
-    $spotlightPosts = $entries->slice(1, 4)->values();
 
     $itemList = $entries->map(function ($post, $position) use ($locale) {
-        $translation = $post->translationFor($locale);
-
         return [
             '@type' => 'ListItem',
             'position' => $position + 1,
-            'url' => route('blog.show', $translation?->slug ?? $post->id),
-            'name' => $translation?->title ?? __('Untitled'),
+            'url' => $post->slug ? route('blog.show', $post->slug) : route('blog.index', ['locale' => $locale]),
+            'name' => $post->title ?? __('Untitled'),
         ];
     })->values()->all();
 
@@ -36,9 +32,9 @@
             [
                 '@type' => 'CollectionPage',
                 '@id' => url()->current() . '#collection',
-                'name' => config('app.name', 'Blog'),
+                'name' => __('Aktuelle Neuigkeiten'),
                 'url' => url()->current(),
-                'description' => __('A multilingual blog with authors, categories, media, SEO metadata, and locale-aware content.'),
+                'description' => __('Aktuelle Blogbeiträge mit Kategorien, Kommentaren und strukturierten Daten.'),
                 'mainEntity' => [
                     '@type' => 'ItemList',
                     'itemListOrder' => 'https://schema.org/ItemListOrderDescending',
@@ -55,252 +51,106 @@
 @endpush
 
 @section('content')
-    <div class="editorial-shell space-y-8">
-        <section class="grid gap-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.55fr)]">
-            <article class="editorial-card overflow-hidden">
-                <a href="{{ $featuredPost ? route('blog.show', $featuredPost->translationFor($locale)?->slug ?? $featuredPost->id) : '#' }}" class="block">
-                    <div class="relative aspect-[16/10] bg-[color:var(--surface-3)]">
-                        @if ($featuredPost && $featuredPost->previewMedia)
-                            <img src="{{ $featuredPost->previewMedia->url() }}" alt="{{ $featuredPost->translationFor($locale)?->preview_image_alt ?? $featuredPost->translationFor($locale)?->title ?? '' }}" class="h-full w-full object-cover">
-                        @else
-                            <div class="flex h-full items-center justify-center bg-gradient-to-br from-[color:var(--surface-2)] to-[color:var(--surface-3)]">
-                                <span class="text-sm font-semibold uppercase tracking-[0.25em] text-[color:var(--muted)]">{{ __('Featured story') }}</span>
-                            </div>
-                        @endif
+    <div class="editorial-shell news-page">
+        <h1 class="news-title">{{ __('Aktuelle Neuigkeiten') }}</h1>
 
-                        @if ($featuredPost?->is_featured)
-                            <div class="absolute right-4 top-4 rounded-full bg-rose-600 px-3 py-1 text-xs font-bold text-white shadow-lg">
-                                {{ __('Featured') }}
-                            </div>
-                        @endif
-                    </div>
-                </a>
+        <form method="GET" action="{{ route('blog.index') }}" class="mt-14">
+            <input type="hidden" name="locale" value="{{ $locale }}">
 
-                <div class="p-6 md:p-8">
-                    <div class="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--muted)]">
-                        <span>{{ __('Hero story') }}</span>
-                        <span>&middot;</span>
-                        <span>{{ $posts->total() }} {{ __('articles') }}</span>
-                    </div>
-
-                    <h1 class="mt-4 text-4xl font-extrabold tracking-[-0.03em] text-[color:var(--text)] md:text-5xl">
-                        {{ $featuredPost ? ($featuredPost->translationFor($locale)?->title ?? __('Untitled')) : __('No published posts yet.') }}
-                    </h1>
-
-                    <p class="mt-4 max-w-2xl text-base leading-8 text-[color:var(--muted)]">
-                        {{ $featuredPost ? ($featuredPost->translationFor($locale)?->excerpt ?? __('A multilingual editorial system for readers and authors.')) : __('Publish your first article to unlock the homepage layout.') }}
-                    </p>
-
-                    @if ($featuredPost)
-                        <div class="mt-6 flex flex-wrap items-center gap-3 text-sm text-[color:var(--muted)]">
-                            <span class="editorial-chip editorial-chip-primary">{{ $featuredPost->author?->name ?? __('Author') }}</span>
-                            <span>{{ optional($featuredPost->published_at)->format('M d, Y') ?? __('Draft') }}</span>
-                            <span>&middot;</span>
-                            <span>{{ $featuredPost->categories->count() }} {{ __('categories') }}</span>
-                        </div>
-                    @endif
-
-                    <div class="mt-6 flex flex-wrap gap-2">
-                        @foreach ($featuredCategories->take(4) as $category)
-                            @php $translation = $category->translationFor($locale); @endphp
-                            <a href="{{ route('blog.category', $translation?->slug ?? $category->id) }}" class="editorial-chip">
-                                {{ $translation?->name ?? __('Category') }}
-                            </a>
-                        @endforeach
-                    </div>
-                </div>
-            </article>
-
-            <aside class="space-y-6">
-                <div class="editorial-card p-6">
-                    <div class="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--muted)]">{{ __('Quick facts') }}</div>
-                    <dl class="mt-5 grid grid-cols-2 gap-4">
-                        <div class="rounded-2xl bg-[color:var(--surface-2)] p-4">
-                            <dt class="text-sm text-[color:var(--muted)]">{{ __('Total entries') }}</dt>
-                            <dd class="mt-2 text-3xl font-extrabold tracking-[-0.03em]">{{ $posts->total() }}</dd>
-                        </div>
-                        <div class="rounded-2xl bg-[color:var(--surface-2)] p-4">
-                            <dt class="text-sm text-[color:var(--muted)]">{{ __('Categories') }}</dt>
-                            <dd class="mt-2 text-3xl font-extrabold tracking-[-0.03em]">{{ $featuredCategories->count() }}</dd>
-                        </div>
-                    </dl>
-
-                    <div class="mt-5 rounded-2xl border border-dashed border-[color:var(--border)] bg-[color:var(--surface-2)] p-4">
-                        <p class="text-sm leading-7 text-[color:var(--muted)]">
-                            {{ __('Everything is locale-aware, service-backed, and ready to power API responses with the same content rules.') }}
-                        </p>
-                    </div>
-                </div>
-
-                <div class="editorial-card p-6">
-                    <div class="flex items-center justify-between gap-4">
-                        <div>
-                            <div class="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--muted)]">{{ __('Trending filters') }}</div>
-                            <div class="mt-1 text-lg font-bold text-[color:var(--text)]">{{ __('Refine the feed') }}</div>
-                        </div>
-                        <span class="editorial-chip editorial-chip-primary">{{ __('Live') }}</span>
-                    </div>
-
-                    <form method="GET" action="{{ route('blog.index') }}" class="mt-5 space-y-4">
-                        <input type="hidden" name="locale" value="{{ $locale }}">
-
-                        <div class="grid gap-4">
-                            <div>
-                                <label class="mb-2 block text-sm font-semibold text-[color:var(--muted)]">{{ __('Sort') }}</label>
-                                <select name="sort" onchange="this.form.submit()" class="editorial-select">
-                                    @foreach ($sortOptions as $value => $label)
-                                        <option value="{{ $value }}" @selected(($filters['sort'] ?? 'recent_desc') === $value)>{{ $label }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-
-                            <div>
-                                <label class="mb-2 block text-sm font-semibold text-[color:var(--muted)]">{{ __('Month') }}</label>
-                                <select name="month" onchange="this.form.submit()" class="editorial-select">
-                                    <option value="">{{ __('All months') }}</option>
-                                    @foreach ($availableMonths as $month)
-                                        <option value="{{ $month }}" @selected(($filters['month'] ?? '') === $month)>
-                                            {{ \Illuminate\Support\Carbon::createFromFormat('Y-m', $month)->translatedFormat('F Y') }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
-
-                            <div>
-                                <label class="mb-2 block text-sm font-semibold text-[color:var(--muted)]">{{ __('Category') }}</label>
-                                <select name="category_id" onchange="this.form.submit()" class="editorial-select">
-                                    <option value="">{{ __('All categories') }}</option>
-                                    @foreach ($featuredCategories as $category)
-                                        @php $translation = $category->translationFor($locale); @endphp
-                                        <option value="{{ $category->id }}" @selected((string) ($filters['category_id'] ?? '') === (string) $category->id)>
-                                            {{ $translation?->name ?? __('Category') }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
-
-                            <div>
-                                <label class="mb-2 block text-sm font-semibold text-[color:var(--muted)]">{{ __('Per page') }}</label>
-                                <select name="per_page" onchange="this.form.submit()" class="editorial-select">
-                                    @foreach ($perPageOptions as $count)
-                                        <option value="{{ $count }}" @selected((int) ($filters['per_page'] ?? 20) === $count)>{{ $count }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="flex items-center justify-between gap-3 pt-1">
-                            <button type="submit" class="editorial-button editorial-button-primary">{{ __('Filter') }}</button>
-                            <a href="{{ route('blog.index', ['locale' => $locale]) }}" class="editorial-button editorial-button-secondary">{{ __('Reset') }}</a>
-                        </div>
-                    </form>
-                </div>
-            </aside>
-        </section>
-
-        <section id="latest" class="space-y-5">
-            <div class="flex items-end justify-between gap-4">
-                <div>
-                    <div class="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--muted)]">{{ __('Latest feed') }}</div>
-                    <h2 class="mt-2 text-2xl font-extrabold tracking-[-0.03em]">{{ __('Stories with editorial depth') }}</h2>
-                </div>
-                <div class="text-sm text-[color:var(--muted)]">
-                    {{ __('Total entries') }}: <span class="font-bold text-[color:var(--text)]">{{ $posts->total() }}</span>
-                </div>
-            </div>
-
-            <div class="grid gap-6 lg:grid-cols-12">
-                @forelse ($spotlightPosts as $index => $post)
-                    @php
-                        $translation = $post->translationFor($locale);
-                        $leadCategory = $post->categories->first()?->translationFor($locale);
-                        $cardClass = match ($index) {
-                            0 => 'lg:col-span-7',
-                            1 => 'lg:col-span-5',
-                            2 => 'lg:col-span-4',
-                            3 => 'lg:col-span-8',
-                            default => 'lg:col-span-6',
-                        };
-                    @endphp
-                    <article class="editorial-card overflow-hidden {{ $cardClass }}">
-                        <a href="{{ route('blog.show', $translation?->slug ?? $post->id) }}" class="block">
-                            <div class="relative aspect-[16/10] bg-[color:var(--surface-3)]">
-                                @if ($post->previewMedia)
-                                    <img src="{{ $post->previewMedia->url() }}" alt="{{ $translation?->preview_image_alt ?? $translation?->title ?? '' }}" class="h-full w-full object-cover">
-                                @else
-                                    <div class="flex h-full items-center justify-center text-[color:var(--muted)]">
-                                        {{ __('No image') }}
-                                    </div>
-                                @endif
-                            </div>
-                        </a>
-
-                        <div class="p-6">
-                            <div class="flex items-center justify-between gap-4 text-xs font-semibold uppercase tracking-[0.22em] text-[color:var(--muted)]">
-                                <span>{{ $leadCategory?->name ?? __('Category') }}</span>
-                                <span>{{ optional($post->published_at)->format('M d, Y') ?? __('Draft') }}</span>
-                            </div>
-
-                            <h3 class="mt-4 text-2xl font-bold tracking-[-0.03em] text-[color:var(--text)]">
-                                <a href="{{ route('blog.show', $translation?->slug ?? $post->id) }}" class="hover:text-[color:var(--primary)]">
-                                    {{ $translation?->title ?? __('Untitled') }}
-                                </a>
-                            </h3>
-
-                            <p class="mt-3 text-sm leading-7 text-[color:var(--muted)]">
-                                {{ \Illuminate\Support\Str::limit(strip_tags($translation?->excerpt ?? ''), 180) }}
-                            </p>
-
-                            <div class="mt-5 flex flex-wrap items-center gap-2">
-                                <span class="editorial-chip editorial-chip-primary">{{ $post->author?->name ?? __('Author') }}</span>
-                                @foreach ($post->categories->take(2) as $category)
-                                    @php $categoryTranslation = $category->translationFor($locale); @endphp
-                                    <a href="{{ route('blog.category', $categoryTranslation?->slug ?? $category->id) }}" class="editorial-chip">
-                                        {{ $categoryTranslation?->name ?? __('Category') }}
-                                    </a>
-                                @endforeach
-                            </div>
-                        </div>
-                    </article>
-                @empty
-                    <div class="editorial-card col-span-full p-10 text-center text-[color:var(--muted)]">
-                        {{ __('No published posts yet.') }}
-                    </div>
-                @endforelse
-            </div>
-
-            <div class="pt-3">
-                {{ $posts->links() }}
-            </div>
-        </section>
-
-        <section id="categories" class="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-            <div class="editorial-card p-6 md:p-8">
-                <div class="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--muted)]">{{ __('Categories') }}</div>
-                <div class="mt-4 flex flex-wrap gap-2">
-                    @foreach ($featuredCategories as $category)
-                        @php $translation = $category->translationFor($locale); @endphp
-                        <a href="{{ route('blog.category', $translation?->slug ?? $category->id) }}" class="editorial-chip">
-                            {{ $translation?->name ?? __('Category') }}
-                        </a>
+            <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[310px_175px_245px_185px_minmax(220px,1fr)] xl:items-center">
+                <select name="sort" onchange="this.form.submit()" class="news-filter-select">
+                    @foreach ($sortOptions as $value => $label)
+                        <option value="{{ $value }}" @selected(($filters['sort'] ?? 'recent_desc') === $value)>{{ $label }}</option>
                     @endforeach
+                </select>
+
+                <select name="month" onchange="this.form.submit()" class="news-filter-select">
+                    <option value="">{{ __('Alle Monate') }}</option>
+                    @foreach ($availableMonths as $month)
+                        <option value="{{ $month }}" @selected(($filters['month'] ?? '') === $month)>
+                            {{ \Illuminate\Support\Carbon::createFromFormat('Y-m', $month)->translatedFormat('F Y') }}
+                        </option>
+                    @endforeach
+                </select>
+
+                <select name="category_id" onchange="this.form.submit()" class="news-filter-select">
+                    <option value="">{{ __('Alle Kategorien') }}</option>
+                    @foreach ($featuredCategories as $category)
+                        @php($categoryTranslation = $category->translationFor($locale))
+                        <option value="{{ $category->id }}" @selected((string) ($filters['category_id'] ?? '') === (string) $category->id)>
+                            {{ $categoryTranslation?->name ?? __('Category') }}
+                        </option>
+                    @endforeach
+                </select>
+
+                <select name="per_page" onchange="this.form.submit()" class="news-filter-select">
+                    @foreach ($perPageOptions as $count)
+                        <option value="{{ $count }}" @selected((int) ($filters['per_page'] ?? 10) === $count)>{{ $count }}</option>
+                    @endforeach
+                </select>
+
+                <div class="news-filter-total">
+                    {{ __('Einträge insgesamt') }}: {{ $posts->total() }}
                 </div>
             </div>
+        </form>
 
-            <div class="editorial-card overflow-hidden">
-                <div class="bg-[color:var(--surface-2)] p-6 md:p-8">
-                    <div class="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--muted)]">{{ __('Newsletter') }}</div>
-                    <h3 class="mt-3 text-2xl font-extrabold tracking-[-0.03em]">{{ __('Master the pulse of language.') }}</h3>
-                    <p class="mt-3 text-sm leading-7 text-[color:var(--muted)]">
-                        {{ __('Join readers, authors, and editors receiving curated multilingual stories and content updates.') }}
+        <div class="news-divider mt-6"></div>
+
+        <div class="news-grid mt-10">
+            <?php foreach ($entries as $entry): ?>
+                <?php
+                    $postUrl = $entry->slug ? route('blog.show', $entry->slug) : '#';
+                    $excerpt = trim(strip_tags((string) $entry->excerpt));
+                    $publishedDate = $entry->published_at
+                        ? \Illuminate\Support\Carbon::parse($entry->published_at)->format('d.m.Y')
+                        : '';
+                    $previewAlt = $entry->preview_image_alt ?? $entry->title ?? __('Blog image');
+                ?>
+
+                <article class="news-card">
+                    <?php if ($entry->preview_image_url): ?>
+                        <a href="<?php echo e($postUrl); ?>" class="news-image">
+                            <img src="<?php echo e($entry->preview_image_url); ?>" alt="<?php echo e($previewAlt); ?>">
+                        </a>
+                    <?php else: ?>
+                        <a href="<?php echo e($postUrl); ?>" class="news-image news-image-placeholder" aria-label="<?php echo e($entry->title ?? __('Untitled')); ?>">
+                            <span class="news-image-placeholder-icon">
+                                <i class="fa-regular fa-image"></i>
+                            </span>
+                            <span><?php echo e(__('No image available')); ?></span>
+                        </a>
+                    <?php endif; ?>
+
+                    <div class="news-meta">
+                        <span><?php echo e($publishedDate); ?></span>
+                        <span class="news-comment">
+                            <i class="fa-solid fa-comments"></i>
+                            <?php echo e($entry->comments_count ?? 0); ?>
+                        </span>
+                    </div>
+
+                    <a href="<?php echo e($postUrl); ?>" class="news-post-title">
+                        <?php echo e($entry->title ?? __('Untitled')); ?>
+                    </a>
+
+                    <p class="news-excerpt">
+                        <?php echo e(\Illuminate\Support\Str::limit($excerpt, 90)); ?>
                     </p>
 
-                    <form class="mt-5 flex flex-col gap-3 sm:flex-row">
-                        <input type="email" class="editorial-input flex-1" placeholder="{{ __('Enter your email') }}">
-                        <button type="submit" class="editorial-button editorial-button-primary">{{ __('Subscribe') }}</button>
-                    </form>
+                    <a href="<?php echo e($postUrl); ?>" class="news-read-more"><?php echo e(__('Weiter')); ?> <span aria-hidden="true">-&gt;</span></a>
+                </article>
+            <?php endforeach; ?>
+
+            @if ($entries->isEmpty())
+                <div class="col-span-full py-12 text-lg">
+                    {{ __('No published posts yet.') }}
                 </div>
-            </div>
-        </section>
+            @endif
+        </div>
+
+        <div class="mt-10">
+            {{ $posts->links() }}
+        </div>
     </div>
 @endsection

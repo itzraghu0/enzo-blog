@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Category;
 use App\Models\CategoryTranslation;
+use App\Models\Media;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Arr;
@@ -16,6 +17,7 @@ class CategoryService
         private readonly TranslationService $translationService,
         private readonly SeoService $seoService,
         private readonly SlugService $slugService,
+        private readonly MediaService $mediaService,
     ) {
     }
 
@@ -24,9 +26,10 @@ class CategoryService
         return DB::transaction(function () use ($data): Category {
             $category = Category::create(Arr::only($data, ['parent_id', 'status', 'sort_order']));
             $this->syncTranslations($category, $data['translations'] ?? []);
+            $this->syncPreviewImage($category, $data);
             $this->flushListingCaches();
 
-            return $category->load(['translations', 'children']);
+            return $category->load(['translations', 'children', 'previewMedia']);
         });
     }
 
@@ -39,15 +42,20 @@ class CategoryService
                 $this->syncTranslations($category, $data['translations'] ?? []);
             }
 
+            $this->syncPreviewImage($category, $data);
             $this->flushListingCaches();
 
-            return $category->load(['translations', 'children']);
+            return $category->load(['translations', 'children', 'previewMedia']);
         });
     }
 
     public function delete(Category $category): bool
     {
         return (bool) DB::transaction(function () use ($category): bool {
+            if ($category->previewMedia) {
+                $this->mediaService->delete($category->previewMedia);
+            }
+
             $deleted = (bool) $category->delete();
             $this->flushListingCaches();
 
@@ -147,7 +155,7 @@ class CategoryService
                     $query->select(['id', 'category_id', 'locale', 'name', 'slug'])
                         ->whereIn('locale', [$locale, $defaultLocale]);
                 },
-                'previewMedia:id,user_id,disk,path,filename,original_name,mime_type,size,alt_text,title,caption,collection,locale,mediable_type,mediable_id,sort_order,created_at,updated_at',
+                'previewMedia:id,user_id,disk,path,filename,original_name,mime_type,size,alt_text,title,caption,seo_keywords,hashtags,relevance_notes,aeo_summary,aeo_questions,geo_summary,geo_entities,geo_prompts,geo_context,collection,locale,mediable_type,mediable_id,sort_order,created_at,updated_at',
                 'author:id,name',
             ])
             ->where('status', 'published')
@@ -193,6 +201,64 @@ class CategoryService
                 Arr::only($payload, $fields)
             );
         }
+    }
+
+    private function syncPreviewImage(Category $category, array $data): void
+    {
+        $file = $data['preview_image'] ?? null;
+        $selectedMediaId = (int) ($data['preview_media_id'] ?? 0);
+        $selectedMedia = $selectedMediaId > 0 ? Media::query()->find($selectedMediaId) : null;
+        $altText = $this->blankToNull($data['preview_image_alt'] ?? null);
+
+        if ($file === null && $selectedMedia === null) {
+            if ($category->previewMedia && array_key_exists('preview_media_id', $data) && $selectedMediaId === 0) {
+                $this->mediaService->delete($category->previewMedia);
+            }
+
+            return;
+        }
+
+        if ($file !== null) {
+            if ($category->previewMedia) {
+                $this->mediaService->delete($category->previewMedia);
+            }
+
+            $media = $this->mediaService->store($file, auth()->user(), [
+                'collection' => 'preview',
+                'alt_text' => $altText,
+            ]);
+            $this->mediaService->attach($media, $category, 'preview');
+
+            return;
+        }
+
+        if ($selectedMedia === null) {
+            return;
+        }
+
+        if ($category->previewMedia && $category->previewMedia->is($selectedMedia)) {
+            $category->previewMedia->update([
+                'alt_text' => $altText ?: $category->previewMedia->alt_text,
+            ]);
+
+            return;
+        }
+
+        if ($category->previewMedia && $category->previewMedia->isNot($selectedMedia)) {
+            $this->mediaService->delete($category->previewMedia);
+        }
+
+        $copy = $this->mediaService->duplicateForModel($selectedMedia, $category, 'preview', null, [
+            'alt_text' => $altText ?: $selectedMedia->alt_text,
+        ]);
+        $this->mediaService->attach($copy, $category, 'preview');
+    }
+
+    private function blankToNull(mixed $value): ?string
+    {
+        $value = trim((string) $value);
+
+        return $value === '' ? null : $value;
     }
 
     private function flushListingCaches(): void

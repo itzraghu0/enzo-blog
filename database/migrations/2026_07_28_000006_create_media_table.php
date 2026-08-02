@@ -20,9 +20,9 @@ return new class extends Migration
             $table->string('alt_text')->nullable();
             $table->string('title')->nullable();
             $table->text('caption')->nullable();
-            $table->string('collection', 191)->default('default');
+            $table->string('collection', 80)->default('default');
             $table->string('locale', 10)->nullable();
-            $table->string('mediable_type', 191)->nullable();
+            $table->string('mediable_type', 120)->nullable();
             $table->unsignedBigInteger('mediable_id')->nullable();
             $table->index(['mediable_type', 'mediable_id']);
             $table->unsignedInteger('sort_order')->default(0);
@@ -30,6 +30,7 @@ return new class extends Migration
             $table->softDeletes();
 
             $table->index(['collection', 'locale']);
+            $table->index(['collection', 'mediable_type', 'mediable_id']);
         });
     }
 

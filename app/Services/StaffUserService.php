@@ -41,6 +41,8 @@ class StaffUserService
             ->when($verified !== null, function ($query) use ($verified): void {
                 if ((bool) $verified) {
                     $query->whereNotNull('email_verified_at');
+                } else {
+                    $query->whereNull('email_verified_at');
                 }
             })
             ->latest('created_at')
@@ -65,7 +67,7 @@ class StaffUserService
                 'email' => $data['email'],
                 'password' => $data['password'],
                 'role' => (int) $data['role'],
-                'email_verified_at' => now(),
+                'email_verified_at' => ($data['email_verified_at'] ?? true) ? now() : null,
             ]));
         });
     }

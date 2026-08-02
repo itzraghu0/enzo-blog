@@ -25,6 +25,10 @@ class PostController extends Controller
     {
         $locale = $request->get('locale', config('blog.default_locale'));
         $search = trim((string) $request->get('search', ''));
+        $status = $request->get('status');
+        $perPageOptions = [10, 20, 50, 100];
+        $perPage = (int) $request->get('per_page', 20);
+        $perPage = in_array($perPage, $perPageOptions, true) ? $perPage : 20;
 
         $stats = [
             'total' => Post::query()->count(),
@@ -50,14 +54,24 @@ class PostController extends Controller
                         ->where('title', 'like', "%{$search}%");
                 });
             })
+            ->when(in_array($status, ['draft', 'published', 'archived'], true), function ($query) use ($status): void {
+                $query->where('status', $status);
+            })
             ->latest()
-            ->paginate(10)
+            ->paginate($perPage)
             ->withQueryString();
 
         return view('admin.blog.posts.index', [
             'posts' => $posts,
             'locale' => $locale,
             'search' => $search,
+            'filters' => [
+                'locale' => $locale,
+                'search' => $search,
+                'status' => $status,
+                'per_page' => $perPage,
+            ],
+            'perPageOptions' => $perPageOptions,
             'stats' => $stats,
             'locales' => config('blog.supported_locales', [config('blog.default_locale', 'en')]),
         ]);
@@ -74,7 +88,6 @@ class PostController extends Controller
                 User::ROLE_AUTHOR,
             ])->orderBy('name')->get(),
             'locales' => config('blog.supported_locales', [config('blog.default_locale', 'en')]),
-            'mediaLibrary' => $this->mediaService->paginate(),
         ]);
     }
 
@@ -89,7 +102,6 @@ class PostController extends Controller
                 User::ROLE_AUTHOR,
             ])->orderBy('name')->get(),
             'locales' => config('blog.supported_locales', [config('blog.default_locale', 'en')]),
-            'mediaLibrary' => $this->mediaService->paginate(),
         ]);
     }
 

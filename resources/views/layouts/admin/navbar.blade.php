@@ -7,14 +7,14 @@
         <div class="kt-menu items-stretch flex-col lg:flex-row gap-5 lg:gap-7.5 grow lg:grow-0" data-kt-menu="true"
             id="mega_menu">
             @if (auth()->check() && auth()->user()->canManageBlog())
-                <div class="kt-menu-item {{ Helper::setActive('admin/posts') }} {{ Helper::setActive('admin/posts/create') }} {{ Helper::setActive('admin/posts/*/edit') }}"
+                <div class="kt-menu-item {{ Helper::setActive('admin/blog/posts') }} {{ Helper::setActive('admin/blog/posts/create') }} {{ Helper::setActive('admin/blog/posts/*/edit') }} {{ Helper::setActive('admin/blog/categories') }} {{ Helper::setActive('admin/blog/categories/create') }} {{ Helper::setActive('admin/blog/categories/*/edit') }}"
                     data-kt-menu-item-offset="-158px, 0"
                     data-kt-menu-item-placement="bottom-start"
                     data-kt-menu-item-toggle="accordion|lg:dropdown"
                     data-kt-menu-item-trigger="click|lg:hover">
                     <div class="kt-menu-link lg:py-3.5 border-b border-b-transparent kt-menu-item-active:border-b-mono text-foreground kt-menu-item-hover:text-mono kt-menu-item-active:text-mono kt-menu-item-here:border-b-mono kt-menu-item-here:text-mono">
                         <span class="kt-menu-title font-medium text-foreground text-sm">
-                            {{ __('Posts') }}
+                            {{ __('Blog') }}
                         </span>
                         <span class="kt-menu-arrow flex lg:hidden">
                             <span class="flex kt-menu-item-show:hidden">
@@ -28,55 +28,29 @@
                     <div class="kt-menu-dropdown">
                         <div class="lg:w-[250px] mt-2 lg:mt-0 lg:border-e lg:border-e-border rounded-xl lg:rounded-l-xl lg:rounded-r-none shrink-0 px-3 py-4 lg:p-7.5 bg-muted/25">
                             <div class="kt-menu kt-menu-default kt-menu-fit flex-col">
-                                <div class="kt-menu-item {{ Helper::setActive('admin/posts') }}">
+                                <div class="kt-menu-item {{ Helper::setActive('admin/blog/posts') }}">
                                     <a class="kt-menu-link border border-transparent kt-menu-link-hover:!bg-background kt-menu-link-hover:border-border kt-menu-item-active:!bg-background kt-menu-item-active:border-border"
                                         href="{{ route('admin.posts.index') }}">
                                         <span class="kt-menu-icon">
                                             <i class="ki-filled ki-book-open"></i>
                                         </span>
                                         <span class="kt-menu-title grow-0">
-                                            {{ __('List') }}
+                                            {{ __('Posts') }}
                                         </span>
                                     </a>
                                 </div>
-                                <div class="kt-menu-item {{ Helper::setActive('admin/posts/create') }}">
+                                <div class="kt-menu-item {{ Helper::setActive('admin/blog/posts/create') }}">
                                     <a class="kt-menu-link border border-transparent kt-menu-link-hover:!bg-background kt-menu-link-hover:border-border kt-menu-item-active:!bg-background kt-menu-item-active:border-border"
                                         href="{{ route('admin.posts.create') }}">
                                         <span class="kt-menu-icon">
                                             <i class="ki-filled ki-plus"></i>
                                         </span>
                                         <span class="kt-menu-title grow-0">
-                                            {{ __('Add New') }}
+                                            {{ __('Add Post') }}
                                         </span>
                                     </a>
                                 </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="kt-menu-item {{ Helper::setActive('admin/categories') }} {{ Helper::setActive('admin/categories/create') }} {{ Helper::setActive('admin/categories/*/edit') }}"
-                    data-kt-menu-item-offset="-158px, 0"
-                    data-kt-menu-item-placement="bottom-start"
-                    data-kt-menu-item-toggle="accordion|lg:dropdown"
-                    data-kt-menu-item-trigger="click|lg:hover">
-                    <div class="kt-menu-link lg:py-3.5 border-b border-b-transparent kt-menu-item-active:border-b-mono text-foreground kt-menu-item-hover:text-mono kt-menu-item-active:text-mono kt-menu-item-here:border-b-mono kt-menu-item-here:text-mono">
-                        <span class="kt-menu-title font-medium text-foreground text-sm">
-                            {{ __('Categories') }}
-                        </span>
-                        <span class="kt-menu-arrow flex lg:hidden">
-                            <span class="flex kt-menu-item-show:hidden">
-                                <i class="ki-filled ki-plus text-xs text-secondary-foreground"></i>
-                            </span>
-                            <span class="hidden kt-menu-item-show:inline-flex">
-                                <i class="ki-filled ki-minus text-xs text-secondary-foreground"></i>
-                            </span>
-                        </span>
-                    </div>
-                    <div class="kt-menu-dropdown">
-                        <div class="lg:w-[250px] mt-2 lg:mt-0 lg:border-e lg:border-e-border rounded-xl lg:rounded-l-xl lg:rounded-r-none shrink-0 px-3 py-4 lg:p-7.5 bg-muted/25">
-                            <div class="kt-menu kt-menu-default kt-menu-fit flex-col">
-                                <div class="kt-menu-item {{ Helper::setActive('admin/categories') }}">
+                                <div class="kt-menu-item {{ Helper::setActive('admin/blog/categories') }}">
                                     <a class="kt-menu-link border border-transparent kt-menu-link-hover:!bg-background kt-menu-link-hover:border-border kt-menu-item-active:!bg-background kt-menu-item-active:border-border"
                                         href="{{ route('admin.categories.index') }}">
                                         <span class="kt-menu-icon">
@@ -87,14 +61,14 @@
                                         </span>
                                     </a>
                                 </div>
-                                <div class="kt-menu-item {{ Helper::setActive('admin/categories/create') }}">
+                                <div class="kt-menu-item {{ Helper::setActive('admin/blog/categories/create') }}">
                                     <a class="kt-menu-link border border-transparent kt-menu-link-hover:!bg-background kt-menu-link-hover:border-border kt-menu-item-active:!bg-background kt-menu-item-active:border-border"
                                         href="{{ route('admin.categories.create') }}">
                                         <span class="kt-menu-icon">
                                             <i class="ki-filled ki-plus"></i>
                                         </span>
                                         <span class="kt-menu-title grow-0">
-                                            {{ __('Add New') }}
+                                            {{ __('Add Category') }}
                                         </span>
                                     </a>
                                 </div>
@@ -127,6 +101,15 @@
                             href="{{ route('admin.staff.index') }}">
                             <span class="kt-menu-title font-medium text-foreground text-sm">
                                 {{ __('Staff') }}
+                            </span>
+                        </a>
+                    </div>
+
+                    <div class="kt-menu-item {{ Helper::setActive('admin/settings') }}">
+                        <a class="kt-menu-link lg:py-3.5 border-b border-b-transparent kt-menu-item-active:border-b-mono text-foreground kt-menu-item-hover:text-mono kt-menu-item-active:text-mono kt-menu-item-here:border-b-mono kt-menu-item-here:text-mono"
+                            href="{{ route('admin.settings.index') }}">
+                            <span class="kt-menu-title font-medium text-foreground text-sm">
+                                {{ __('Settings') }}
                             </span>
                         </a>
                     </div>
